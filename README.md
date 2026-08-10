@@ -137,8 +137,125 @@ On Windows PowerShell:
 python -m pip install -r requirements.txt
 ```
 
+### Using `requirements.txt`
+
+The `requirements.txt` file lists the Python packages and versions required by
+the project. The packages themselves are not stored in this repository. After
+cloning the repository, each contributor should create their own virtual
+environment and install the listed dependencies:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+On macOS or Linux, activate the environment with
+`source .venv/bin/activate` instead. If the dependency list changes, run
+`python -m pip install -r requirements.txt` again after `git pull`.
+
+When adding a new direct dependency, install it inside the activated virtual
+environment and record it in `requirements.txt`. For example:
+
+```powershell
+python -m pip install scipy
+python -m pip freeze > requirements.txt
+git add requirements.txt
+git commit -m "Add scipy dependency"
+git push
+```
+
+Do not commit the `.venv` directory. It is intentionally excluded because each
+contributor creates it locally from `requirements.txt`.
+
 The exact simulation command will be documented once the numerical driver has
 been implemented.
+
+## Git and GitHub workflow for beginners
+
+Git keeps a history of the project on your computer, while GitHub stores the
+shared copy used by the whole group.
+
+### Download the project for the first time
+
+First, install [Git](https://git-scm.com/downloads) and ask a project member for
+the GitHub repository URL. In PowerShell, Terminal, or Git Bash, move to the
+folder in which you want to keep the project and run:
+
+```bash
+git clone https://github.com/jiajunwu1729/2particle-numerics.git
+cd 2particle-numerics
+```
+
+Only use `git clone` once. After cloning, keep and work inside this folder.
+Downloading the repository as a ZIP file is possible for reading the code, but
+is not recommended for collaboration because a ZIP download has no Git history
+and cannot be updated with `git pull`.
+
+### Update your local copy
+
+Before starting work, open a terminal inside the project folder and run:
+
+```bash
+git pull
+```
+
+This downloads and combines the latest changes from GitHub. A good habit is to
+run `git pull` at the beginning of every work session and again before uploading
+your own changes.
+
+If Git says that local changes would be overwritten, do not delete files or use
+`git reset --hard`. First run `git status`, then commit your work as described
+below. Ask another group member for help if Git reports a merge conflict.
+
+### Save and upload your changes
+
+After editing files, check what has changed:
+
+```bash
+git status
+git diff
+```
+
+Add the files you want to save, create a commit with a short description, update
+your copy, and then upload the commit:
+
+```bash
+git add <file-name>
+git commit -m "Short description of the change"
+git pull --rebase
+git push
+```
+
+For example:
+
+```bash
+git add README.md
+git commit -m "Document the Git workflow"
+git pull --rebase
+git push
+```
+
+Use `git add .` only when you have checked `git status` and really want to add
+all listed changes. Do not commit `.venv`, `.idea`, generated plots, or large
+data files unless the group has agreed to track them.
+
+### Everyday checklist
+
+The usual sequence is:
+
+```text
+1. git pull
+2. Edit or run the code
+3. git status and git diff
+4. git add <file-name>
+5. git commit -m "Describe the change"
+6. git pull --rebase
+7. git push
+```
+
+Commit small, related changes and use messages that explain what changed. This
+makes mistakes easier to find and avoids large, difficult merge conflicts.
 
 ## Planned work
 
