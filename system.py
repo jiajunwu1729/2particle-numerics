@@ -29,7 +29,7 @@ def inverse_power_potential(q, k, alpha, C, beta, Lx, Ly):
     return particle_potential + wall_potential
 
 
-# Particle-particle interaction plus logarithmic walls
+# Particle-particle interaction with infinite walls
 def logarithmic_potential(q, k, alpha, C, Lx, Ly):
     separation = q[0] - q[1]
     r_squared = sum(separation**2)
@@ -44,6 +44,46 @@ def logarithmic_potential(q, k, alpha, C, Lx, Ly):
             + log(Lx - x)
             + log(y)
             + log(Ly - y)
+        )
+
+    return particle_potential + wall_potential
+
+
+# Particle-particle interaction plus four uniformly charged line walls
+def line_charge_potential(
+    q,
+    k,
+    alpha,
+    lambda_,
+    Lx,
+    Ly,
+    particle_charge=1.0,
+    coulomb_constant=1.0,
+):
+    separation = q[0] - q[1]
+    r_squared = sum(separation**2)
+    particle_potential = k * r_squared**(-alpha / 2)
+
+    # lambda_ is used because "lambda" is a reserved Python keyword.
+    # In SI units, coulomb_constant = 1 / (4 * pi * epsilon).
+    wall_strength = coulomb_constant * particle_charge * lambda_
+    wall_potential = 0
+    for x, y in q:
+        # System builds the force symbolically, while energy() evaluates this
+        # function with NumPy arrays.
+        asinh = sp.asinh if isinstance(x, sp.Basic) else np.arcsinh
+
+        # Bottom and top walls (horizontal line segments).
+        wall_potential += wall_strength * (
+            asinh(x / y)
+            + asinh((Lx - x) / y)
+            + asinh(x / (Ly - y))
+            + asinh((Lx - x) / (Ly - y))
+            # Left and right walls (vertical line segments).
+            + asinh(y / x)
+            + asinh((Ly - y) / x)
+            + asinh(y / (Lx - x))
+            + asinh((Ly - y) / (Lx - x))
         )
 
     return particle_potential + wall_potential
