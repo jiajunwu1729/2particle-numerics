@@ -1,7 +1,9 @@
 from system import *
 
+# equilibrium with line charge potential at low energy
+
 a = 1.40471931879
-A = 0.1
+A = 1.5
 
 omega2 = 0.10088116
 

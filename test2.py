@@ -1,5 +1,7 @@
 from system import *
 
+# inverse power potential with high energy, but does not start at equilibrium
+
 normal_mode = System(
     q0 = [
         [3, 3],
@@ -10,21 +12,22 @@ normal_mode = System(
         [0, -20],
     ],
     KE=kinetic,
-    V=line_charge_potential,
+    V=inverse_power_potential,
     V_parameters={
         "k": 1.0,
         "alpha": 1.0,
-        "lambda_": 10,
+        "beta": 1.0,
+        "C": 1.0,
         "Lx": 10.0,
         "Ly": 10.0,
     },
     masses=(1.0, 1.0),
 )
 
-h = 0.00001
+h = 0.0001
 q, p, energy = normal_mode.leapfrog(
     h=h,
-    nsteps=800000,
+    nsteps=100000,
 )
 
 plot_leapfrog(q, p, energy, h)

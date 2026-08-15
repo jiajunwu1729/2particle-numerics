@@ -1,10 +1,15 @@
 from system import *
 
-# Larger near-elliptic orbit around the lambda_ = 0.01 equilibrium.
+# equilibrium of inverse power potential at low energy
+
+# found by calculating the gradient of V and set it to 0
 # A controls the size; A = 1.0 gives an orbit roughly 1--2 units across.
-a = 1.40471931879
-A = 1.0
-omega2 = 0.10088116
+# if we set A=0 the particles barely move
+
+
+a = 3.6644771408428354
+omega2 = 0.106783610467868
+A = 0.5
 
 q0 = [
     [a + A / 2, a + A / 2],
@@ -21,11 +26,12 @@ large_orbit = System(
     q0=q0,
     p0=p0,
     KE=kinetic,
-    V=line_charge_potential,
+    V=inverse_power_potential,
     V_parameters={
         "k": 1.0,
         "alpha": 1.0,
-        "lambda_": 0.01,
+        "beta": 1.0,
+        'C': 1.0,
         "Lx": 10.0,
         "Ly": 10.0,
     },
