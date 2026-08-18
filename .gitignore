@@ -1,6 +1,7 @@
 .venv/
 .idea/
 __pycache__/
+media/
 *.pyc
 
 # Local planning-with-files state
