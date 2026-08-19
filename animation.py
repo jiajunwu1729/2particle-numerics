@@ -8,7 +8,7 @@ import sympy as sp
 # 2. Initial conditions
 # ============================================================
 
-q0, p0, h = initial_conditions["case5"]
+q0, p0, h = initial_conditions["case2"]
 
 system = System(
     q0=q0,

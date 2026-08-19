@@ -109,6 +109,69 @@ time, avoids singular encounters, and shows bounded numerical energy error.
 Additional diagnostics, such as Poincare sections or Lyapunov exponents, may be
 introduced later to distinguish regular motion from chaotic but bounded motion.
 
+## Manim animation
+
+The numerical trajectory can be rendered as a video with the
+[`ParticleSystem`](animation.py) scene in `animation.py`.
+
+### Installation
+
+Create and activate a virtual environment from the repository root:
+
+```powershell
+# Windows PowerShell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+```bash
+# macOS or Linux
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Then install the numerical dependencies and Manim Community:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install manim
+```
+
+Verify that Manim is available:
+
+```bash
+python -m manim --version
+```
+
+### Rendering the video
+
+For a quick, low-quality preview render, run:
+
+```bash
+python -m manim -pql animation.py ParticleSystem
+```
+
+For the final 1080p60 render, run:
+
+```bash
+python -m manim -pqh animation.py ParticleSystem
+```
+
+Here, `-p` opens the video after rendering, while `-ql` and `-qh` select low
+and high quality, respectively. If automatic preview is not desired or is not
+available in the current environment, omit `-p`.
+
+Manim writes the rendered MP4 below `media/videos/animation/`. For example, the
+high-quality command produces:
+
+```text
+media/videos/animation/1080p60/ParticleSystem.mp4
+```
+
+The simulation is computed when `animation.py` is loaded, so rendering can take
+some time before the animation frames begin to appear.
+
 ## Project status
 
 The repository is currently being set up. At present it contains the Python

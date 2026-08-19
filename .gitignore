@@ -5,6 +5,6 @@ media/
 *.pyc
 
 # Local planning-with-files state
-planning-with-files/task_plan.md
-planning-with-files/findings.md
-planning-with-files/progress.md
+task_plan.md
+findings.md
+progress.md
