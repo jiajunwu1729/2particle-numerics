@@ -8,16 +8,13 @@ import sympy as sp
 # 2. Initial conditions
 # ============================================================
 
-q0, p0, h = initial_conditions["case2"]
+q0, p0, h = initial_conditions["case3"]
 
 system = System(
     q0=q0,
     p0=p0,
-
     KE=kinetic,
-
     V=inverse_power_potential,
-
     V_parameters={
         "k": 1.0,
         "alpha": 1.0,
@@ -26,7 +23,6 @@ system = System(
         "Lx": 10.0,
         "Ly": 10.0,
     },
-
     masses=(1.0, 1.0),
 )
 
@@ -56,10 +52,8 @@ class ParticleSystem(Scene):
         axes = Axes(
             x_range=[0, 10, 2],
             y_range=[0, 10, 2],
-
             x_length=6,
             y_length=6,
-
             axis_config={
                 "include_tip": False,
                 "numbers_to_exclude": [0],
@@ -70,11 +64,7 @@ class ParticleSystem(Scene):
             height=6,
             width=6,
         )
-
-        self.add(
-            axes,
-            box,
-        )
+        self.add(box)
 
         # ====================================================
         # IMPORTANT:
@@ -82,7 +72,6 @@ class ParticleSystem(Scene):
         # ====================================================
 
         stride = 100
-
         trajectory = q[::stride]
 
         # trajectory.shape:
