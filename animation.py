@@ -4,37 +4,39 @@ from initial_conditions import *
 import numpy as np
 import sympy as sp
 
-# ============================================================
-# 2. Initial conditions
-# ============================================================
+def fading_trail(
+    axes,
+    trajectory,
+    tracker,
+    particle_index,
+    color,
+    trail_length=80,
+):
+    """Build the finite fading trail used by the particle animations."""
+    def make_trail():
+        i = min(int(tracker.get_value()), len(trajectory) - 1)
+        start = max(0, i - trail_length)
+        data = trajectory[start: i + 1, particle_index, :]
+        trail = VGroup()
 
-q0, p0, h = initial_conditions["case3"]
+        if len(data) < 2:
+            return trail
 
-system = System(
-    q0=q0,
-    p0=p0,
-    KE=kinetic,
-    V=inverse_power_potential,
-    V_parameters={
-        "k": 1.0,
-        "alpha": 1.0,
-        "beta": 1.0,
-        "C": 1.0,
-        "Lx": 10.0,
-        "Ly": 10.0,
-    },
-    masses=(1.0, 1.0),
-)
+        number_of_segments = len(data) - 1
+        for j in range(number_of_segments):
+            p1 = axes.c2p(data[j, 0], data[j, 1])
+            p2 = axes.c2p(data[j + 1, 0], data[j + 1, 1])
+            opacity = ((j + 1) / number_of_segments) ** 2
+            trail.add(Line(
+                p1,
+                p2,
+                color=color,
+                stroke_width=4,
+                stroke_opacity=opacity,
+            ))
+        return trail
 
-
-# ============================================================
-# 3. Simulation
-# ============================================================
-
-q, p, energy = system.leapfrog(
-    h=h,
-    nsteps=100000,
-)
+    return always_redraw(make_trail)
 
 
 # ============================================================
@@ -44,6 +46,24 @@ q, p, energy = system.leapfrog(
 class ParticleSystem(Scene):
 
     def construct(self):
+
+        q0, p0, h = initial_conditions["case3"]
+        system = System(
+            q0=q0,
+            p0=p0,
+            KE=kinetic,
+            V=inverse_power_potential,
+            V_parameters={
+                "k": 1.0,
+                "alpha": 1.0,
+                "beta": 1.0,
+                "C": 1.0,
+                "Lx": 10.0,
+                "Ly": 10.0,
+            },
+            masses=(1.0, 1.0),
+        )
+        q, _, _ = system.leapfrog(h=h, nsteps=100000)
 
         # ----------------------------------------------------
         # Axes
@@ -93,76 +113,16 @@ class ParticleSystem(Scene):
         trail_length = 80
 
         # ====================================================
-        # Fading trail
-        # ====================================================
-
-        def make_trail(
-            particle_index,
-            color,
-        ):
-
-            i = int(tracker.get_value())
-
-            # Only keep the most recent trajectory
-            start = max(0, i - trail_length)
-            data = trajectory[start: i + 1, particle_index, :]
-
-            trail = VGroup()
-
-            if len(data) < 2:
-                return trail
-
-            # ------------------------------------------------
-            # Construct each small line segment separately
-            # ------------------------------------------------
-
-            number_of_segments = len(data) - 1
-
-            for j in range(number_of_segments):
-
-                p1 = axes.c2p(
-                    data[j, 0],
-                    data[j, 1],
-                )
-
-                p2 = axes.c2p(
-                    data[j + 1, 0],
-                    data[j + 1, 1],
-                )
-
-                # --------------------------------------------
-                # opacity:
-                #
-                # old trajectory -> almost transparent
-                # new trajectory -> opaque
-                # --------------------------------------------
-
-                t = (j + 1) / number_of_segments
-                
-                opacity = t ** 2
-
-                segment = Line(
-                    p1,
-                    p2,
-                    color=color,
-                    stroke_width=4,
-                    stroke_opacity=opacity,
-                )
-
-                trail.add(segment)
-
-            return trail
-
-
-        # ====================================================
         # Particle 1 trail
         # ====================================================
 
-        trail1 = always_redraw(
-            lambda: make_trail(
-                particle_index=0,
-                color=BLUE,
-            )
+        trail1 = fading_trail(
+            axes,
+            trajectory,
+            tracker,
+            particle_index=0,
+            color=BLUE,
+            trail_length=trail_length,
         )
 
 
@@ -170,11 +130,13 @@ class ParticleSystem(Scene):
         # Particle 2 trail
         # ====================================================
 
-        trail2 = always_redraw(
-            lambda: make_trail(
-                particle_index=1,
-                color=RED,
-            )
+        trail2 = fading_trail(
+            axes,
+            trajectory,
+            tracker,
+            particle_index=1,
+            color=RED,
+            trail_length=trail_length,
         )
 
 
