@@ -1,41 +1,11 @@
 """Animate Case 2 under a linear external energy ramp.
 
-The original Hamiltonian conserves energy. This experiment uses two explicit
-stages: free evolution, followed by a linear target-energy ramp implemented by
-small momentum rescalings. After heating stops, the system again evolves freely
-from the state it reached naturally; no position interpolation or orbit capture
-is applied.
-
-Numerical diagnostic:
-    python case2_energy_ramp.py
-
-Manim preview:
+Render a preview with:
     python -m manim -pql case2_energy_ramp.py Case2EnergyRamp
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
-from manim import (
-    always_redraw,
-    Axes,
-    BLUE,
-    Circle,
-    DecimalNumber,
-    Dot,
-    DOWN,
-    GREEN,
-    LEFT,
-    linear,
-    RED,
-    RIGHT,
-    Scene,
-    Text,
-    UP,
-    ValueTracker,
-    VGroup,
-    WHITE,
-    YELLOW,
-)
+from manim import *
 
 from animation import fading_trail
 from initial_conditions import initial_conditions
@@ -61,9 +31,9 @@ P_CASE2 = np.asarray(initial_conditions["case2"][1], dtype=float)
 LOCAL_RADIUS = 2.0
 FINAL_ENERGY = 2.2
 
-FREE_LOW = 0
-HEATING = 1
-FREE_HIGH = 2
+FREE_LOW = "low-energy free evolution"
+HEATING = "linear external heating ON"
+FREE_HIGH = "post-ramp free evolution"
 
 
 def total_energy(q, p):
@@ -72,20 +42,13 @@ def total_energy(q, p):
     )
 
 
-def scheduled_energy(
-    time,
-    initial_energy,
-    final_energy,
-    hold,
-    ramp_duration,
-):
-    ramp_end = hold + ramp_duration
+def scheduled_energy(time, initial, final, hold, ramp_duration):
     if time <= hold:
-        return initial_energy
-    if time <= ramp_end:
+        return initial
+    if time < hold + ramp_duration:
         fraction = (time - hold) / ramp_duration
-        return initial_energy + fraction * (final_energy - initial_energy)
-    return final_energy
+        return initial + fraction * (final - initial)
+    return final
 
 
 def leapfrog_step(q, p, force, h):
@@ -99,8 +62,8 @@ def rescale_to_energy(q, p, energy):
     potential = inverse_power_potential(q, **PARAMETERS)
     target_kinetic = energy - potential
     current_kinetic = kinetic(p, MASSES)
-    if target_kinetic <= 0.0 or current_kinetic <= 0.0:
-        raise RuntimeError("The controlled state has no real momentum")
+    # if target_kinetic <= 0.0 or current_kinetic <= 0.0:
+    #     raise RuntimeError("The controlled state has no real momentum")
     return p * np.sqrt(target_kinetic / current_kinetic)
 
 
@@ -115,8 +78,8 @@ def simulate_energy_ramp(
     q = Q_CASE2.copy()
     p = P_CASE2.copy()
     initial_energy = total_energy(q, p)
-    if final_energy <= initial_energy:
-        raise ValueError("final energy must exceed the initial energy")
+    # if final_energy <= initial_energy:
+    #     raise ValueError("final energy must exceed the initial energy")
 
     system = System(
         q.copy(), p.copy(), kinetic, inverse_power_potential, PARAMETERS,
@@ -131,7 +94,6 @@ def simulate_energy_ramp(
 
     times = [0.0]
     positions = [q.copy()]
-    momenta = [p.copy()]
     energies = [initial_energy]
     targets = [initial_energy]
     radii = [np.linalg.norm(q - Q_EQUILIBRIUM)]
@@ -139,109 +101,52 @@ def simulate_energy_ramp(
 
     for step in range(nsteps):
         time = (step + 1) * h
+        q, p = leapfrog_step(q, p, force, h)
 
+        target = scheduled_energy(
+            time, initial_energy, final_energy, hold, ramp_duration,
+        )
         if time <= hold:
             phase = FREE_LOW
-            q, p = leapfrog_step(q, p, force, h)
         elif time <= ramp_end:
             phase = HEATING
-            q, p = leapfrog_step(q, p, force, h)
-            desired = scheduled_energy(
-                time, initial_energy, final_energy, hold, ramp_duration,
-            )
-            p = rescale_to_energy(q, p, desired)
+            p = rescale_to_energy(q, p, target)
         else:
             phase = FREE_HIGH
-            q, p = leapfrog_step(q, p, force, h)
 
         if (step + 1) % sample_stride == 0 or step + 1 == nsteps:
             times.append(time)
             positions.append(q.copy())
-            momenta.append(p.copy())
             energies.append(total_energy(q, p))
-            targets.append(scheduled_energy(
-                time, initial_energy, final_energy, hold, ramp_duration,
-            ))
+            targets.append(target)
             radii.append(np.linalg.norm(q - Q_EQUILIBRIUM))
             phases.append(phase)
 
     times = np.asarray(times)
     positions = np.asarray(positions)
-    momenta = np.asarray(momenta)
     energies = np.asarray(energies)
     targets = np.asarray(targets)
     radii = np.asarray(radii)
     phases = np.asarray(phases)
-    escaped = np.flatnonzero(radii > LOCAL_RADIUS)
 
     return {
         "time": times,
         "q": positions,
-        "p": momenta,
         "energy": energies,
         "target_energy": targets,
         "radius": radii,
         "phase": phases,
         "initial_energy": initial_energy,
         "high_energy": final_energy,
-        "hold": hold,
-        "ramp_duration": ramp_duration,
-        "escape_index": int(escaped[0]) if len(escaped) else None,
     }
 
 
-def plot_diagnostic(result, output="case2_energy_ramp.png"):
-    time = result["time"]
-    q = result["q"]
-    figure, axes = plt.subplots(1, 3, figsize=(15, 4.5))
-
-    for particle in range(2):
-        axes[0].plot(q[:, particle, 0], q[:, particle, 1], linewidth=0.7)
-        axes[0].plot(
-            Q_EQUILIBRIUM[particle, 0], Q_EQUILIBRIUM[particle, 1],
-            marker="o", markersize=8, markerfacecolor="none", alpha=0.45,
-        )
-    axes[0].set(
-        xlim=(0.0, 10.0), ylim=(0.0, 10.0), aspect="equal",
-        xlabel="x", ylabel="y", title="Driven trajectory",
-    )
-
-    axes[1].plot(time, result["target_energy"], "--", label="target")
-    axes[1].plot(time, result["energy"], label="actual")
-    axes[1].set(xlabel="time", ylabel="total energy", title="Energy protocol")
-    axes[1].legend()
-
-    axes[2].plot(time, result["radius"])
-    axes[2].axhline(
-        LOCAL_RADIUS, color="red", linestyle="--", label="local threshold"
-    )
-    axes[2].set(
-        xlabel="time", ylabel=r"$||q-q_{eq}||$",
-        title="Departure under slow linear heating",
-    )
-    axes[2].legend()
-
-    for axis in axes:
-        axis.grid(alpha=0.25)
-    figure.tight_layout()
-    figure.savefig(output, dpi=180)
-    plt.close(figure)
-
-
 def line_from_data(axes, x, y, color):
-    line = VGroup()
     stride = max(1, len(x) // 600)
-    sampled_x = x[::stride]
-    sampled_y = y[::stride]
-    for first, second in zip(
-        zip(sampled_x[:-1], sampled_y[:-1]),
-        zip(sampled_x[1:], sampled_y[1:]),
-    ):
-        line.add(axes.plot_line_graph(
-            [first[0], second[0]], [first[1], second[1]],
-            line_color=color, add_vertex_dots=False, stroke_width=2,
-        ))
-    return line
+    return axes.plot_line_graph(
+        x[::stride], y[::stride],
+        line_color=color, add_vertex_dots=False, stroke_width=2,
+    )
 
 
 class Case2EnergyRamp(Scene):
@@ -341,11 +246,7 @@ class Case2EnergyRamp(Scene):
         ).arrange(RIGHT, buff=0.12).next_to(radius_axes, DOWN, buff=0.25)
 
         phase_text = always_redraw(lambda: Text(
-            {
-                FREE_LOW: "low-energy free evolution",
-                HEATING: "linear external heating ON",
-                FREE_HIGH: "post-ramp free evolution",
-            }[phase[index()]],
+            phase[index()],
             font_size=23,
             color=GREEN if phase[index()] == HEATING else WHITE,
         ).next_to(energy_axes, DOWN, buff=0.2))
@@ -363,31 +264,3 @@ class Case2EnergyRamp(Scene):
             rate_func=linear,
         )
         self.wait(1.0)
-
-
-def main():
-    result = simulate_energy_ramp()
-    plot_diagnostic(result)
-    escape_index = result["escape_index"]
-    print(f"initial energy: {result['initial_energy']:.9f}")
-    print(f"target energy:  {result['high_energy']:.9f}")
-    print(f"final energy:   {result['energy'][-1]:.9f}")
-    if escape_index is None:
-        print(f"local radius {LOCAL_RADIUS:g} was not crossed")
-    else:
-        print(
-            f"first local-radius crossing: t={result['time'][escape_index]:.3f}, "
-            f"E={result['energy'][escape_index]:.6f}, "
-            f"R={result['radius'][escape_index]:.6f}"
-        )
-    high = result["phase"] == FREE_HIGH
-    print(
-        "final free-stage coordinate ranges: "
-        f"dx1={np.ptp(result['q'][high, 0, 0]):.6f}, "
-        f"dy1={np.ptp(result['q'][high, 0, 1]):.6f}"
-    )
-    print("Saved diagnostic figure to case2_energy_ramp.png")
-
-
-if __name__ == "__main__":
-    main()
