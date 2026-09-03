@@ -1,3 +1,7 @@
+"""
+python -m manim -pqh animation.py ParticleSystem
+"""
+
 from manim import *
 from system import *
 from initial_conditions import *

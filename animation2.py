@@ -1,7 +1,7 @@
 """Animate Case 2 under a linear external energy ramp.
 
 Render a preview with:
-    python -m manim -pql case2_energy_ramp.py Case2EnergyRamp
+    python -m manim -pqh animation2.py Case2EnergyRamp
 """
 
 import numpy as np
