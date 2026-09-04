@@ -127,7 +127,7 @@ def simulate_energy_ramp(
     energies = np.asarray(energies)
     targets = np.asarray(targets)
     radii = np.asarray(radii)
-    phases = np.asarray(phases)
+    phases = np.asarray(phases, dtype=object)
 
     return {
         "time": times,
