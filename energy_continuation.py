@@ -456,6 +456,7 @@ def continue_to_periodic_orbit(
         if verbose:
             print(f"    fixed-point residual = {residual:.3e}")
             print(f"    Newton iterations = {newton_iterations}")
+            print(f"    lambda = {np.round(multipliers, 8)}")
             print(f"    |lambda| = {np.round(np.abs(multipliers), 8)}")
             print("    q* =\n", q_star)
             print("    p* =\n", p_star)
