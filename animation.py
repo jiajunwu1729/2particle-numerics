@@ -5,8 +5,25 @@ python -m manim -pqh animation.py ParticleSystem
 from manim import *
 from system import *
 from initial_conditions import *
-import numpy as np
-import sympy as sp
+
+# Select the named initial positions, momenta, and integration step size.
+INITIAL_CONDITION_NAME = "low_energy_limit"
+q0, p0, TIME_STEP = initial_conditions[
+    INITIAL_CONDITION_NAME
+]
+
+# Set the number of numerical integration steps. Default 100000
+N_STEPS = 2000000
+
+# Keep one trajectory point for every this many integration steps. Default 100
+TRAJECTORY_STRIDE = 500
+
+# Set the number of previous trajectory points shown in each trail. Default 80
+TRAIL_LENGTH = 80
+
+# Set the animation playback duration in seconds. Default 15
+ANIMATION_RUN_TIME = 20
+
 
 def fading_trail(
     axes,
@@ -14,7 +31,7 @@ def fading_trail(
     tracker,
     particle_index,
     color,
-    trail_length=80,
+    trail_length=TRAIL_LENGTH,
 ):
     """Build the finite fading trail used by the particle animations."""
     def make_trail():
@@ -51,7 +68,6 @@ class ParticleSystem(Scene):
 
     def construct(self):
 
-        q0, p0, h = initial_conditions["case3"]
         system = System(
             q0=q0,
             p0=p0,
@@ -67,7 +83,7 @@ class ParticleSystem(Scene):
             },
             masses=(1.0, 1.0),
         )
-        q, _, _ = system.leapfrog(h=h, nsteps=100000)
+        q, _, _ = system.leapfrog(h=TIME_STEP, nsteps=N_STEPS)
 
         # ----------------------------------------------------
         # Axes
@@ -95,8 +111,7 @@ class ParticleSystem(Scene):
         # Downsample the numerical trajectory
         # ====================================================
 
-        stride = 100
-        trajectory = q[::stride]
+        trajectory = q[::TRAJECTORY_STRIDE]
 
         # trajectory.shape:
         #
@@ -113,9 +128,6 @@ class ParticleSystem(Scene):
 
         tracker = ValueTracker(1)
 
-        # Number of previous trajectory points displayed
-        trail_length = 80
-
         # ====================================================
         # Particle 1 trail
         # ====================================================
@@ -126,7 +138,7 @@ class ParticleSystem(Scene):
             tracker,
             particle_index=0,
             color=BLUE,
-            trail_length=trail_length,
+            trail_length=TRAIL_LENGTH,
         )
 
 
@@ -140,7 +152,7 @@ class ParticleSystem(Scene):
             tracker,
             particle_index=1,
             color=RED,
-            trail_length=trail_length,
+            trail_length=TRAIL_LENGTH,
         )
 
 
@@ -186,7 +198,7 @@ class ParticleSystem(Scene):
 
         self.play(
             tracker.animate.set_value(n - 1),
-            run_time=15,
+            run_time=ANIMATION_RUN_TIME,
             rate_func=linear,
         )
         self.wait()

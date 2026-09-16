@@ -2,6 +2,7 @@
 .idea/
 __pycache__/
 media/
+tmp/lyapunov_scan_cache/
 *.pyc
 
 # Local planning-with-files state
