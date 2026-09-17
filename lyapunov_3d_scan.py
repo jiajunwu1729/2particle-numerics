@@ -96,6 +96,7 @@ LOW_FTLE_CUTOFF = 0.2
 
 PROJECT_DIR = Path(__file__).resolve().parent
 CACHE_DIR = PROJECT_DIR / "tmp" / "lyapunov_scan_cache"
+THETA_SECTIONS_IMAGE = PROJECT_DIR / "images" / "lyapunov_theta_sections.png"
 
 
 # -----------------------------------------------------------------------------
@@ -476,6 +477,60 @@ def plot_all_ftle(result: ScanResult, *, elev: float = 24, azim: float = -55):
     return fig, ax
 
 
+def plot_theta_sections(result: ScanResult, output_path: Path):
+    """Plot every fixed-theta FTLE section in the (r, phi) plane."""
+    finite_values = result.lyap[result.valid & np.isfinite(result.lyap)]
+    if finite_values.size == 0:
+        raise ValueError("cannot plot theta sections without finite FTLE values")
+
+    ncols = 6
+    nrows = math.ceil(len(result.theta) / ncols)
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(18, 2.8 * nrows),
+        sharex=True,
+        sharey=True,
+        constrained_layout=True,
+        squeeze=False,
+    )
+
+    masked_lyap = np.ma.masked_where(~result.valid, result.lyap)
+    color_min = float(np.min(finite_values))
+    color_max = float(np.max(finite_values))
+    mesh = None
+
+    for index, (ax, theta) in enumerate(zip(axes.flat, result.theta)):
+        mesh = ax.pcolormesh(
+            result.r,
+            result.phi,
+            masked_lyap[:, :, index].T,
+            shading="auto",
+            cmap="viridis",
+            vmin=color_min,
+            vmax=color_max,
+        )
+        ax.set_title(rf"$\theta={np.degrees(theta):.0f}^\circ$")
+        ax.set_xlabel(r"$r$")
+        ax.set_ylabel(r"$\phi$")
+
+    for ax in axes.flat[len(result.theta):]:
+        ax.set_visible(False)
+
+    fig.colorbar(
+        mesh,
+        ax=axes.ravel().tolist(),
+        label=r"finite-time $\lambda_{\max}^{(T)}$",
+        shrink=0.9,
+    )
+    fig.suptitle(r"Fixed-$\theta$ Lyapunov diagrams in the $(r,\phi)$ plane")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    plt.show()
+    return fig, axes
+
+
 # -----------------------------------------------------------------------------
 # Periodic-orbit eigenvalue cross-check
 # -----------------------------------------------------------------------------
@@ -512,20 +567,20 @@ if __name__ == "__main__":
         print(f"Cache hit: {cache_path}")
         print("Skipping FTLE simulation.")
 
-    print("\n===== FTLE BY THETA =====")
-
-    for i, theta in enumerate(result.theta):
-        values = result.lyap[:, :, i]
-        values = values[np.isfinite(values)]
-
-        print(
-            f"theta[{i:2d}] = {theta:.6f} rad "
-            f"= {np.degrees(theta):6.1f} deg | "
-            f"min = {np.min(values):.4f}, "
-            f"median = {np.median(values):.4f}, "
-            f"mean = {np.mean(values):.4f}, "
-            f"N(lambda<0.2) = {np.sum(values < 0.2)}"
-        )
+    # print("\n===== FTLE BY THETA =====")
+    #
+    # for i, theta in enumerate(result.theta):
+    #     values = result.lyap[:, :, i]
+    #     values = values[np.isfinite(values)]
+    #
+    #     print(
+    #         f"theta[{i:2d}] = {theta:.6f} rad "
+    #         f"= {np.degrees(theta):6.1f} deg | "
+    #         f"min = {np.min(values):.4f}, "
+    #         f"median = {np.median(values):.4f}, "
+    #         f"mean = {np.mean(values):.4f}, "
+    #         f"N(lambda<0.2) = {np.sum(values < 0.2)}"
+    #     )
 
     ftle = result.lyap
 
@@ -544,6 +599,8 @@ if __name__ == "__main__":
         print("|lambda| < 0.01:",
               np.sum(np.abs(ftle[finite]) < 0.01))
     plot_regular_points(result, lambda_tol=REGULAR_TOL)
+    plot_theta_sections(result, THETA_SECTIONS_IMAGE)
+    print(f"Saved theta-section diagram: {THETA_SECTIONS_IMAGE}")
     # Uncomment for a second diagnostic plot:
     # plot_all_ftle(result)
     # ============================================================
