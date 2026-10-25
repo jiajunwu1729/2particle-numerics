@@ -1,4 +1,4 @@
-"""Plot fixed-energy trajectories selected by (r, phi, theta)."""
+"""Compare theta=45-degree trajectories in square and rectangular boxes."""
 
 from pathlib import Path
 
@@ -11,19 +11,25 @@ from system import System, inverse_power_potential, kinetic
 # =============================================================================
 # USER-CONFIGURABLE PARAMETERS
 # =============================================================================
-# Angles are in degrees. Add or remove dictionaries to change the number of
-# trajectories plotted.
+# All cases use theta=45 degrees.  The selected points include an initially
+# diagonal orbit and low-FTLE points from each scan.
 ORBIT_PARAMETERS = [
-    {"r": 2.5778, "phi_deg": 45.0, "theta_deg": 45.0},
-    {"r": 2.5778, "phi_deg": 135.0, "theta_deg": 135.0},
-    {"r": 2.5778, "phi_deg": 225.0, "theta_deg": 225.0},
-    {"r": 2.5778, "phi_deg": 315.0, "theta_deg": 315.0},
+    {"box": "square", "r": 1.157954870711797, "phi_deg": 0.0, "theta_deg": 89.99999999998136},
+    {"box": "square", "r": 2.582942865722269, "phi_deg": 0.0, "theta_deg": 63.21468443390945},
+    {"box": "square", "r": 2.5060243405272153, "phi_deg": 0.0, "theta_deg": 33.99150432284999},
+    {"box": "square", "r": 2.3941589895951765, "phi_deg": 0.0, "theta_deg": 157.8319709773103},
+    {"box": "square", "r": 2.100555769923924, "phi_deg": 0.0, "theta_deg": 163.94767964911452},
+    {"box": "square", "r": 4.939306296057734, "phi_deg": 0.0, "theta_deg": 90.0000017480391},
+    {"box": "square", "r": 4.669045021049446, "phi_deg": 0.0, "theta_deg": 90.0000001592494},
+    {"box": "square", "r": 3.775779271212741, "phi_deg": 0.0, "theta_deg": 77.85591630513832},
+    {"box": "square", "r": 3.750600004213311, "phi_deg": 0.0, "theta_deg": 39.026070165498744},
+    {"box": "square", "r": 3.4459051759652857, "phi_deg": 0.0, "theta_deg": 22.004308828695567},
 ]
 
 H = 0.001
 NSTEPS = 50000
 
-MODEL_PARAMETERS = {
+SQUARE_PARAMETERS = {
     "k": 1.0,
     "alpha": 1.0,
     "beta": 1.0,
@@ -32,7 +38,27 @@ MODEL_PARAMETERS = {
     "Ly": 10.0,
 }
 MASSES = np.array([1.0, 1.0])
-CENTER = np.array([5.0, 5.0])
+
+BOX_AREA = 100.0
+RECTANGLE_ASPECT_RATIO = 1.5
+RECTANGLE_LX = np.sqrt(BOX_AREA * RECTANGLE_ASPECT_RATIO)
+RECTANGLE_LY = np.sqrt(BOX_AREA / RECTANGLE_ASPECT_RATIO)
+RECTANGLE_PARAMETERS = {
+    **SQUARE_PARAMETERS,
+    "Lx": RECTANGLE_LX,
+    "Ly": RECTANGLE_LY,
+}
+
+BOXES = {
+    "square": {
+        "label": "square (10 x 10)",
+        "parameters": SQUARE_PARAMETERS,
+    },
+    "rectangle": {
+        "label": "rectangle (aspect ratio 1.5)",
+        "parameters": RECTANGLE_PARAMETERS,
+    },
+}
 
 # This is the same energy reference used by lyapunov_3d_scan.py.
 REFERENCE_Q = np.array([
@@ -45,27 +71,38 @@ REFERENCE_P = np.array([
 ])
 
 PROJECT_DIR = Path(__file__).resolve().parent
-OUTPUT_IMAGE = PROJECT_DIR / "images" / "test2_selected_orbits.png"
+OUTPUT_IMAGE = (
+    PROJECT_DIR / "images" / "test2_theta45_square_rectangle.png"
+)
 
 
 TARGET_ENERGY = float(
     kinetic(REFERENCE_P, MASSES)
-    + inverse_power_potential(REFERENCE_Q, **MODEL_PARAMETERS)
+    + inverse_power_potential(REFERENCE_Q, **SQUARE_PARAMETERS)
 )
 
 
-def initial_condition_from_r_phi_theta(r, phi_deg, theta_deg):
+def initial_condition_from_r_phi_theta(
+    r,
+    phi_deg,
+    theta_deg,
+    model_parameters,
+):
     """Construct a center-symmetric initial state at TARGET_ENERGY."""
     phi = np.radians(phi_deg)
     theta = np.radians(theta_deg)
+    center = np.array([
+        model_parameters["Lx"] / 2.0,
+        model_parameters["Ly"] / 2.0,
+    ])
 
     position_direction = np.array([np.cos(phi), np.sin(phi)])
-    q1 = CENTER + r * position_direction
-    q2 = CENTER - r * position_direction
+    q1 = center + r * position_direction
+    q2 = center - r * position_direction
     q0 = np.array([q1, q2])
 
     potential = float(
-        inverse_power_potential(q0, **MODEL_PARAMETERS)
+        inverse_power_potential(q0, **model_parameters)
     )
     available_kinetic_energy = TARGET_ENERGY - potential
     if not np.isfinite(available_kinetic_energy) or available_kinetic_energy <= 0.0:
@@ -94,19 +131,29 @@ def plot_selected_orbits(orbit_parameters, h, nsteps, output_path):
         squeeze=False,
     )
     results = []
+    total_time = h * nsteps
 
     for row, parameters in enumerate(orbit_parameters):
-        q0, p0 = initial_condition_from_r_phi_theta(**parameters)
+        box = BOXES[parameters["box"]]
+        model_parameters = box["parameters"]
+        q0, p0 = initial_condition_from_r_phi_theta(
+            r=parameters["r"],
+            phi_deg=parameters["phi_deg"],
+            theta_deg=parameters["theta_deg"],
+            model_parameters=model_parameters,
+        )
         orbit = System(
             q0=q0.copy(),
             p0=p0.copy(),
             KE=kinetic,
             V=inverse_power_potential,
-            V_parameters=MODEL_PARAMETERS,
+            V_parameters=model_parameters,
             masses=MASSES,
         )
-        q, p, energy = orbit.leapfrog(h=h, nsteps=nsteps)
-        time = h * np.arange(len(energy))
+        case_h = parameters.get("h", h)
+        case_nsteps = round(total_time / case_h)
+        q, p, energy = orbit.leapfrog(h=case_h, nsteps=case_nsteps)
+        time = case_h * np.arange(len(energy))
         results.append((q, p, energy))
 
         trajectory_axis, momentum_axis, energy_axis = axes[row]
@@ -134,7 +181,7 @@ def plot_selected_orbits(orbit_parameters, h, nsteps, output_path):
             )
 
         label = (
-            f"r={parameters['r']:.4f}, "
+            f"{box['label']} | r={parameters['r']:.4f}, "
             f"phi={parameters['phi_deg']:.1f} deg, "
             f"theta={parameters['theta_deg']:.1f} deg"
         )
@@ -142,8 +189,8 @@ def plot_selected_orbits(orbit_parameters, h, nsteps, output_path):
         trajectory_axis.set(
             xlabel="x",
             ylabel="y",
-            xlim=(0, 10),
-            ylim=(0, 10),
+            xlim=(0, model_parameters["Lx"]),
+            ylim=(0, model_parameters["Ly"]),
         )
         trajectory_axis.set_aspect("equal", adjustable="box")
         trajectory_axis.legend()
@@ -165,7 +212,7 @@ def plot_selected_orbits(orbit_parameters, h, nsteps, output_path):
         max_error = np.max(np.abs(energy - energy[0]))
         print(
             f"{label}: E(0)={energy[0]:.12f}, "
-            f"max |dE|={max_error:.3e}"
+            f"h={case_h:g}, max |dE|={max_error:.3e}"
         )
 
     fig.tight_layout()
@@ -178,6 +225,10 @@ def plot_selected_orbits(orbit_parameters, h, nsteps, output_path):
 
 if __name__ == "__main__":
     print(f"Target energy: {TARGET_ENERGY:.12f}")
+    print(
+        "Rectangle dimensions: "
+        f"Lx={RECTANGLE_LX:.8f}, Ly={RECTANGLE_LY:.8f}"
+    )
     orbit_results = plot_selected_orbits(
         ORBIT_PARAMETERS,
         h=H,
