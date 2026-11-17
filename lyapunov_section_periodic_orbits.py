@@ -26,6 +26,8 @@ so the return map is smooth enough for Newton's method.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from pathlib import Path
 
@@ -61,6 +63,10 @@ SYMMETRY_TOL = 0.02
 
 PROJECT_DIR = Path(__file__).resolve().parent
 IMAGE_PATH = PROJECT_DIR / "images" / "lyapunov_section_periodic_orbits.png"
+# find_orbits() results are cached here, keyed by a hash of every parameter
+# that affects them; set RECOMPUTE = True to ignore an existing cache file.
+CACHE_DIR = PROJECT_DIR / "tmp" / "lyapunov_orbit_cache"
+RECOMPUTE = False
 
 
 ENERGY = sec.total_energy(sec.Q_REF, sec.P_REF)
@@ -349,6 +355,67 @@ def find_orbits():
     return orbits
 
 
+def orbit_metadata() -> dict:
+    return {
+        "simulation_version": sec.SIMULATION_VERSION,
+        "parameters": sec.PARAMETERS,
+        "mass": MASS,
+        "energy": float(ENERGY),
+        "h": TIME_STEP,
+        "k_max": K_MAX,
+        "seed_nx": SEED_NX,
+        "seed_npx": SEED_NPX,
+        "seed_residual": SEED_RESIDUAL,
+        "newton_iters": NEWTON_ITERS,
+        "newton_tol": NEWTON_TOL,
+        "fd_eps": FD_EPS,
+        "max_newton_step": MAX_NEWTON_STEP,
+        "t_return_max": T_RETURN_MAX,
+        "lyap_check_t": LYAP_CHECK_T,
+        "fine_h": FINE_TIME_STEP,
+        "fine_newton_iters": FINE_NEWTON_ITERS,
+        "fine_tol": FINE_TOL,
+        "symmetry_tol": SYMMETRY_TOL,
+        "renorm_every": sec.RENORM_EVERY,
+        "tangent_seed": sec.TANGENT_SEED,
+    }
+
+
+def _to_json(obj):
+    if isinstance(obj, dict):
+        return {k: _to_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, np.ndarray)):
+        return [_to_json(v) for v in obj]
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    return obj
+
+
+def load_or_find_orbits():
+    metadata = orbit_metadata()
+    text = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    path = CACHE_DIR / f"orbits_{digest}.json"
+    if path.exists() and not RECOMPUTE:
+        print(f"Cache hit: {path}")
+        orbits = json.loads(path.read_text(encoding="utf-8"))["orbits"]
+        for o in orbits:
+            o["z"] = np.array(o["z"])
+            o["cycle"] = [tuple(c) for c in o["cycle"]]
+            o["aliases"] = [(k, tuple(z)) for k, z in o["aliases"]]
+        return orbits
+
+    print(f"Cache miss: searching for periodic orbits ({path.name})")
+    orbits = find_orbits()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"metadata": metadata, "orbits": _to_json(orbits)},
+                               indent=1), encoding="utf-8")
+    print(f"Saved cache: {path}")
+    return orbits
+
+
 def describe(o):
     x, px, py = o["z"][0], o["z"][1], o["py"]
     r = abs(x)
@@ -413,7 +480,7 @@ def plot_orbits(orbits, output_path):
 
 if __name__ == "__main__":
     print(f"Energy = {ENERGY:.10f}")
-    orbits = find_orbits()
+    orbits = load_or_find_orbits()
 
     print("\n===== PERIODIC ORBITS (one representative per symmetry class) =====")
     header = (f"{'#':>2} {'type':<10} {'k':>2} {'x':>9} {'px':>9} "
@@ -430,7 +497,7 @@ if __name__ == "__main__":
             print(f"{'':>14}= symmetric image, seen as k={k} at "
                   f"(x, px) = ({ax_:.5f}, {apx:.5f})")
 
-    print("\nElliptic orbits in test2.py ORBIT_PARAMETERS format:")
+    print("\nElliptic orbits in plot_selected_orbits.py ORBIT_PARAMETERS format:")
     for o in orbits:
         d = describe(o)
         if d["kind"] == "elliptic":

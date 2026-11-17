@@ -2,8 +2,19 @@
 .idea/
 __pycache__/
 media/
-tmp/lyapunov_scan_cache/
 *.pyc
+
+# Caches of long computations (e.g. the Lyapunov scan); kept locally only
+tmp/
+
+# Intermediate full-size PNGs written by lyapunov_*.py and plot_selected_orbits.py;
+# the report uses the PDFs and *_report.jpg files in images/
+images/*.png
+
+# LaTeX build files
+*.aux
+*.log
+*.out
 
 # Local planning-with-files state
 task_plan.md

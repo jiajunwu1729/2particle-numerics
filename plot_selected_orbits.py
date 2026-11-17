@@ -1,4 +1,18 @@
-"""Compare theta=45-degree trajectories in square and rectangular boxes."""
+"""Plot selected centre-symmetric orbits in a square or a rectangular box.
+
+Each orbit is given by the starting point of particle 1, (r, phi, theta), at
+the energy of the reference state below (E ~ 52.23), and by the box it is
+integrated in ("square" 10 x 10, or "rectangle" with the same area and aspect
+ratio 1.5). The current list is the ten island-centre orbits printed by
+lyapunov_section_periodic_orbits.py, all in the square box; set "box" to
+"rectangle" to see how an orbit changes when the box is stretched.
+
+Run from the repository root:
+
+    python plot_selected_orbits.py
+
+Output: images/plot_selected_orbits.png (not tracked by git).
+"""
 
 from pathlib import Path
 
@@ -11,8 +25,8 @@ from system import System, inverse_power_potential, kinetic
 # =============================================================================
 # USER-CONFIGURABLE PARAMETERS
 # =============================================================================
-# All cases use theta=45 degrees.  The selected points include an initially
-# diagonal orbit and low-FTLE points from each scan.
+# The ten island-centre orbits (#1-#10 of the report's Figure 6), copied from
+# the output of lyapunov_section_periodic_orbits.py.
 ORBIT_PARAMETERS = [
     {"box": "square", "r": 1.157954870711797, "phi_deg": 0.0, "theta_deg": 89.99999999998136},
     {"box": "square", "r": 2.582942865722269, "phi_deg": 0.0, "theta_deg": 63.21468443390945},
@@ -72,7 +86,7 @@ REFERENCE_P = np.array([
 
 PROJECT_DIR = Path(__file__).resolve().parent
 OUTPUT_IMAGE = (
-    PROJECT_DIR / "images" / "test2_theta45_square_rectangle.png"
+    PROJECT_DIR / "images" / "plot_selected_orbits.png"
 )
 
 

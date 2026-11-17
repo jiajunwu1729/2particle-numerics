@@ -1,0 +1,571 @@
+% Summer research report: two-particle Hamiltonian system
+% Data sources: report01-04.ipynb, case3_newton_failure_diagnosis.ipynb,
+% lyapunov_*.py; orbit figures from report/make_orbit_figures.py.
+% Text marked with \todo{...} still needs checking or a decision.
+% Numbers were copied from notebook outputs on 2026-11-07; the equilibrium
+% energy/frequencies and the step-halving check were computed the same day
+% (see the comments next to them).
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+\graphicspath{{../images/}{figures/}}
+
+% Figures and tables use [H] (float package): placed exactly where they are
+% in the source, right after the paragraph that first refers to them.
+\usepackage{float}
+
+% Visible placeholder. For a clean draft use \newcommand{\todo}[1]{}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\newcommand{\q}{\mathbf{q}}
+\newcommand{\p}{\mathbf{p}}
+\newcommand{\M}{\mathcal{M}}
+
+\title{Periodic Orbits and Chaos in a System of Two Repelling Particles in a Box:\\
+a Numerical Study}
+\author{Jiajun Wu\\[2pt]
+\small Department of Mathematics, Imperial College London\\
+\small Summer research project (2026), supervised by Prof.\ Dmitry Turaev}
+\date{\todo{date}}
+
+\begin{document}
+\maketitle
+
+% ---------------------------------------------------------------------------
+\begin{abstract}
+We study numerically a Hamiltonian system of two equal particles in a square
+box, repelling each other through an inverse-power potential and confined by
+smooth, singular wall potentials. Combining a symplectic integrator, Poincar\'e
+sections, Newton's method for fixed points of the Poincar\'e map, and finite-time
+Lyapunov exponents, we find that the motion is regular close to the equilibrium,
+becomes chaotic at slightly higher energies, and is again largely organised by
+stable periodic motion at high energy. We compute two families of periodic
+orbits and follow them in energy. A ``vertical'' bouncing orbit is linearly
+stable for $E\gtrsim3.9$ and loses stability between $E\approx3.9$ and $3.3$,
+where the numerics are consistent with a symmetry-breaking bifurcation. A
+``circular'' orbit around the centre of the box is linearly stable at every
+energy we computed, from $E\approx2$ to $E\approx202$. At $E\approx52$ the phase
+space is mixed, with a chaotic sea and many elliptic islands whose centres we
+locate. We also describe where our continuation method fails and why.
+\end{abstract}
+
+% ---------------------------------------------------------------------------
+\section{Introduction}\label{sec:intro}
+
+Consider two particles in a box that repel each other. Nothing could be simpler
+to write down, yet the long-time behaviour of such a system is far from obvious.
+The particles might settle into a regular, repeating pattern, or wander
+chaotically over all the available space, or do one or the other depending on
+the energy and the initial condition.
+
+For a single particle in a smooth convex box, this is the classical question of
+billiard-like dynamics. With two or more particles the system has more degrees
+of freedom and, in general, no conserved quantity besides the energy, so one
+expects coexistence of regular and chaotic motion. Rom-Kedar and Turaev
+\cite{turaev2022} proved that $N$ particles with a smooth repelling interaction
+in a compact region are \emph{not} ergodic at sufficiently high energy: there
+are stable ``choreographic'' motions, in which the particles follow
+approximately the same path close to an elliptic periodic orbit of the
+single-particle problem. \todo{Check this summary and the framing of the next
+sentence with Prof.\ Turaev.} This project explores numerically the simplest
+case, two particles in a square, and asks what happens at energies that are
+not necessarily large.
+
+Concretely, we
+(i)~integrate typical trajectories (Section~\ref{sec:trajectories}),
+(ii)~use Poincar\'e sections to separate regular from chaotic motion as the
+energy changes (Section~\ref{sec:sections}),
+(iii)~compute periodic orbits with Newton's method, determine their linear
+stability and follow them in energy
+(Sections~\ref{sec:vertical}--\ref{sec:circular}), and
+(iv)~map the phase space at a fixed high energy with finite-time Lyapunov
+exponents (Section~\ref{sec:lyapunov}).
+The model and its symmetries are described in Section~\ref{sec:model} and the
+numerical methods in Section~\ref{sec:methods}. Section~\ref{sec:discussion}
+discusses limitations and open questions.
+All statements below are based on numerical evidence; none of them is proved.
+
+% ---------------------------------------------------------------------------
+\section{The model}\label{sec:model}
+
+Two particles with positions $\q_i=(x_i,y_i)$ and momenta $\p_i$ ($i=1,2$)
+move in the box $(0,L_x)\times(0,L_y)$ with Hamiltonian
+\begin{equation}\label{eq:H}
+  H(\q,\p)=\sum_{i=1}^{2}\frac{|\p_i|^2}{2m_i}
+  + V\bigl(|\q_1-\q_2|\bigr) + U(\q_1) + U(\q_2),
+\end{equation}
+where the particle--particle repulsion and the wall potential are
+\begin{equation}\label{eq:potentials}
+  V(r)=k\,r^{-\alpha},\qquad
+  U(x,y)=C\Bigl[x^{-\beta}+(L_x-x)^{-\beta}+y^{-\beta}+(L_y-y)^{-\beta}\Bigr].
+\end{equation}
+Both terms are singular: $V\to\infty$ at collision and $U\to\infty$ at the
+walls. Hence, on any energy level, the particles stay a positive distance from
+each other and from the walls, and the motion is defined for all time.
+
+Throughout we take $k=C=\alpha=\beta=1$, $m_1=m_2=1$ and $L_x=L_y=10$.
+The model is a dimensionless toy model, so these values were chosen to be of
+order one rather than to match a physical system.
+\todo{Mention whether other exponents or rectangular boxes were tried
+(e.g.\ \texttt{test2.py}).}
+
+\paragraph{Symmetries.}
+The energy is conserved. Because of the walls, neither total momentum nor
+angular momentum is conserved, and we are not aware of any further integral.
+The system is invariant under the symmetries of the square applied to both
+particles, and under exchange of the particles. Combining exchange with the
+point reflection $\q\mapsto2\mathbf{c}-\q$ through the centre
+$\mathbf{c}=(L_x/2,L_y/2)$ shows that the \emph{centre-symmetric set}
+\begin{equation}\label{eq:centresym}
+  \M=\bigl\{\q_2 = 2\mathbf{c}-\q_1,\ \p_2=-\p_1\bigr\}
+\end{equation}
+is invariant under the flow: it is the fixed-point set of the symmetry
+$(\q_1,\q_2,\p_1,\p_2)\mapsto(2\mathbf{c}-\q_2,\,2\mathbf{c}-\q_1,\,-\p_2,\,-\p_1)$,
+which preserves $H$. On $\M$ the motion is described by particle~1 alone, as a
+system with two degrees of freedom.
+
+\paragraph{Dimensions.}
+The full phase space is $8$-dimensional, an energy level is $7$-dimensional,
+and a Poincar\'e section inside an energy level is $6$-dimensional. On $\M$
+these numbers become $4$, $3$ and $2$, so the Poincar\'e map restricted to $\M$
+is an area-preserving map of a planar region, like the standard map. This is
+what makes the two-dimensional pictures in Section~\ref{sec:lyapunov}
+possible. All initial conditions in this report lie on $\M$.
+
+\paragraph{Equilibrium.}
+On the diagonal, $\nabla(V+U)=0$ has the symmetric solution
+$\q_1=(a,a)$, $\q_2=(10-a,10-a)$ with $a\approx3.6645$, at energy
+$E_{\mathrm{eq}}\approx1.9877$.
+% Computed 2026-11-07 from the Hessian of V+U (SymPy), not in the notebooks.
+Its linearisation has frequencies $\omega\approx0.107$, $0.220$ (double) and
+$0.350$.
+% Checked twice on 2026-11-07: SymPy Hessian and an independent
+% finite-difference Hessian agree to 8 digits.
+The modes with $\omega\approx0.107$ (motion perpendicular to the
+diagonal) and $\omega\approx0.350$ (motion along the diagonal) lie in $\M$;
+the double frequency belongs to the two centre-of-mass modes,
+$\delta\q_1=\delta\q_2$, which leave $\M$.
+
+% ---------------------------------------------------------------------------
+\section{Numerical methods}\label{sec:methods}
+
+\subsection{Time integration}
+The equations of motion are integrated with the leapfrog (St\"ormer--Verlet)
+scheme
+\begin{equation}\label{eq:leapfrog}
+  \p^{n+1/2}=\p^n+\tfrac h2 F(\q^n),\quad
+  \q^{n+1}=\q^n+h\,M^{-1}\p^{n+1/2},\quad
+  \p^{n+1}=\p^{n+1/2}+\tfrac h2 F(\q^{n+1}),
+\end{equation}
+where $F=-\nabla(V+U)$ is obtained by symbolic differentiation (SymPy) and
+compiled into a NumPy function. Leapfrog is second order, symplectic and
+time-reversible, so the energy error oscillates but does not drift over long
+times \cite{hairer2006}. This matters here because we integrate for hundreds
+of time units and want to trust what we see in Poincar\'e sections.
+
+The step size is adapted to the speed of the particles: $h=10^{-2}$ near the
+equilibrium, $h=2.5\times10^{-3}$ to $5\times10^{-4}$ for the periodic-orbit
+computations, and down to $h=10^{-5}$ at $E\approx202$. In all runs used for
+Poincar\'e sections the relative energy error at the crossings is at most
+about $10^{-6}$. As a convergence check, halving $h$ twice changes the computed
+periods of the orbits in Figures~\ref{fig:vertical} and~\ref{fig:circular} by
+less than $10^{-6}$ in relative terms, with the factor-four reduction expected
+of a second-order method, and the orbits still close to within $10^{-7}$.
+% Step-halving check run 2026-11-07: E=11.075 T=6.87461211/...275/...291;
+% E=3.876 T=14.80128691/...697/...699; E=3.011 T=23.80233268/...379/...407.
+
+\subsection{Poincar\'e sections}
+A Poincar\'e section is a hypersurface $\Sigma=\{g(\q)=0\}$, crossed in a fixed
+direction; we use $y_1=5$ with $p_{y_1}>0$ and the diagonal $x_1=y_1$ with
+$p_{x_1}-p_{y_1}>0$. A leapfrog step will generally jump over $\Sigma$ rather
+than land on it, so the crossing point has to be reconstructed. We use two
+methods, depending on what the crossing points are needed for.
+
+\paragraph{Linear interpolation (for plotting sections).}
+If $s_n=g(\q^n)<0\le s_{n+1}=g(\q^{n+1})$, we set
+$\theta=-s_n/(s_{n+1}-s_n)$ and take
+$(\q,\p)=(\q^n,\p^n)+\theta\bigl((\q^{n+1},\p^{n+1})-(\q^n,\p^n)\bigr)$ at time
+$(n+\theta)h$. The error is $O(h^2)$, the same order as that of leapfrog
+itself, which is more than enough for the section plots of
+Figures~\ref{fig:cases}, \ref{fig:energy-sections} and~\ref{fig:lyapunov}.
+
+\paragraph{Partial leapfrog steps (for Newton's method).}
+To solve $P^k(z)=z$ we need a return map that is accurate and smooth in $z$,
+because its Jacobian is computed by finite differences. Here the crossing is
+found by taking a leapfrog step of length $\tau\in(0,h]$ from $(\q^n,\p^n)$
+and solving $g(\q(\tau))=0$ for $\tau$: by bisection in the continuation runs
+of Sections~\ref{sec:vertical}--\ref{sec:circular}, and by a few secant
+iterations in the island-centre search of Section~\ref{sec:lyapunov}. The
+crossing point then lies exactly on a (shortened) leapfrog trajectory and
+satisfies $g=0$ to round-off, instead of only approximately.
+
+\subsection{Periodic orbits by Newton's method}\label{sec:newton}
+At fixed energy $E$, a point of $\Sigma$ is described by six coordinates $z$;
+the remaining momentum component is recovered from $H=E$, so every iterate
+stays on the energy level. A periodic orbit that crosses $\Sigma$ $k$ times per
+period is a fixed point of $P^k$, where $P$ is the first-return map. We solve
+$P^k(z)=z$ by Newton's method,
+\begin{equation}\label{eq:newton}
+  \bigl(DP^k(z_j)-I\bigr)\,\Delta z_j=-\bigl(P^k(z_j)-z_j\bigr),\qquad
+  z_{j+1}=z_j+s_j\,\Delta z_j,
+\end{equation}
+where $DP^k$ is approximated by central finite differences and a backtracking
+line search chooses $s_j\in(0,1]$ so that the residual decreases. From a
+reasonable initial guess Newton typically converges in 3--6 iterations to a
+residual $|P^k(z)-z|$ between $10^{-9}$ and $10^{-13}$.
+
+\paragraph{Linear stability.}
+The eigenvalues $\lambda$ of $DP^k(z^*)$ are the non-trivial Floquet
+multipliers of the periodic orbit. Because the map is symplectic, they come in
+quadruples $\lambda,\bar\lambda,1/\lambda,1/\bar\lambda$. We call the orbit
+\emph{linearly stable} (elliptic) if all multipliers lie on the unit circle,
+and \emph{unstable} if some $|\lambda|>1$. Linear stability does not imply
+stability of the nonlinear system, although for an elliptic orbit KAM theory
+makes nonlinear stability typical in two degrees of freedom
+\cite{meiss}. \todo{Keep this sentence only if Prof.\ Turaev agrees with it.}
+With finite-difference Jacobians, $|\lambda|$ is accurate to about $10^{-6}$,
+so we treat $\bigl||\lambda|-1\bigr|<10^{-3}$ as being on the unit circle.
+
+\todo{If keeping the transverse-stability calculation of
+\texttt{lyapunov\_section\_periodic\_orbits.py}, explain it here:
+perturbations leaving $\M$ with $\delta\q_2=\delta\q_1$ reduce to two Hill
+equations, and $|\operatorname{tr}|<2$ for both gives stability in the full
+phase space. The results are not stored, so the script would need to be
+re-run.}
+
+\subsection{Continuation in energy}
+To follow a periodic orbit as the energy changes, we take a converged orbit at
+energy $E$, rescale its momenta to the new energy $E'$, and use the result as
+the initial guess for Newton at $E'$. This is natural-parameter continuation:
+simple, but unable to pass a fold, and liable to jump to a nearby orbit when two
+branches come close (Section~\ref{sec:discussion}).
+
+\subsection{Finite-time Lyapunov exponents}
+On $\M$ we integrate, together with each trajectory, a tangent vector updated
+by the exact linearisation of the leapfrog step, and renormalise it every 40
+steps. The finite-time maximal Lyapunov exponent $\lambda_{\max}$ is the
+average logarithmic growth rate over $T=500$ ($h=10^{-3}$). Since all crossings
+of one trajectory share its $\lambda_{\max}$, one integration colours all its
+points in the Poincar\'e section. Initial conditions form a $120\times120$ grid
+on the section, of which the 13\,920 energetically accessible points are used.
+To locate island centres we search for fixed points of $P^k$, $k\le4$, starting
+Newton from grid points that nearly return after $k$ crossings, and classify a
+fixed point as elliptic if $|\operatorname{tr}DP^k|<2$.
+
+% ---------------------------------------------------------------------------
+\section{Results}\label{sec:results}
+
+\subsection{Typical trajectories}\label{sec:trajectories}
+Table~\ref{tab:cases} lists five initial conditions, all on $\M$, and
+Figure~\ref{fig:cases} shows the trajectories together with 200 returns to a
+Poincar\'e section. Cases~1 and~2 start near the equilibrium and stay near it:
+the section points lie on smooth curves, so the motion is regular
+(quasi-periodic). In Case~3 the particles move around the centre of the box,
+always opposite each other, and the section points form two tiny clusters,
+which suggests a periodic orbit nearby; it is computed in
+Section~\ref{sec:circular}. In Case~4 each particle bounces between the top and
+bottom walls along an almost vertical line. It is a periodic orbit: after one
+period $T\approx1.0027$ the state returns to its initial value to within
+$6\times10^{-7}$. Case~5 starts from the same momenta at a different $x$, and
+its section points lie on a closed curve around the Case~4 point, as expected
+near an elliptic periodic orbit.
+
+\begin{table}[H]
+\centering
+\caption{Initial conditions. Particle~2 always starts at the point reflection
+$2\mathbf{c}-\q_1(0)$ with momentum $-\p_1(0)$; $a\approx3.6645$ is the
+equilibrium position, at energy $E_{\mathrm{eq}}\approx1.9877$.}
+\label{tab:cases}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Case & $\q_1(0)$ & $\p_1(0)$ & $E$ & Motion\\
+\midrule
+1 & $(a,a)+5\cdot10^{-4}(1,1)$ & $(10^{-3},0)$ & $1.9877$ & small regular oscillation\\
+2 & $(a,a)+0.25\,(1,1)$ & $(0,0.05)$ & $2.0073$ & regular, quasi-periodic\\
+3 & $(a,a)+5\cdot10^{-4}(1,1)$ & $(0.1,-0.1)$ & $2.0077$ & near a periodic loop\\
+4 & $(3.8352,\,5)$ & $(0,20)$ & $402.08$ & periodic, vertical bouncing\\
+5 & $(3,\,5)$ & $(0,20)$ & $402.00$ & regular, around Case 4\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_cases.pdf}
+  \caption{Top: trajectories for the five cases of Table~\ref{tab:cases}
+  (particle~1 blue, particle~2 orange). Bottom: 200 returns to a Poincar\'e
+  section, plotted relative to the starting point (red star). The section is
+  the hyperplane through the starting point normal to the largest initial
+  velocity component, crossed in the same direction; the axes are the other
+  coordinate of the same particle and its momentum. Note the scales: in Case~4
+  all returns lie within $10^{-5}$ of the start.}
+  \label{fig:cases}
+\end{figure}
+
+\subsection{Regular and chaotic motion as the energy increases}\label{sec:sections}
+To see how the type of motion depends on energy, we start from the Case~2
+position and give the particles vertical momenta $\pm v$ for four values of $v$,
+so that $E$ ranges from just above $E_{\mathrm{eq}}$ to $E\approx11$
+(Figure~\ref{fig:energy-sections}). At $E\approx2.007$ the section points lie on
+smooth curves and the motion is regular. Already at $E\approx2.028$ the points
+scatter over two regions, and at $E\approx2.97$ the trajectory fills most of
+the box while the section points are spread everywhere: the motion appears
+chaotic. At $E\approx11$ the motion is regular again: the particles stay in two
+thin vertical bands and the section points lie on a single closed curve,
+because the orbit is now trapped near the stable vertical periodic orbit of
+Section~\ref{sec:vertical}. So in this sequence chaos is strongest at
+intermediate energies, and at high energy regular motion reappears around
+stable periodic orbits, in line with \cite{turaev2022}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_energy_sections.pdf}
+  \caption{Starting from the Case~2 position with vertical momenta
+  $\pm v$: trajectories over $300$ time units (top) and 200 returns to the
+  section $y_1=y_{\mathrm{eq}}$, $p_{y_1}>0$, in the coordinates
+  $(x_1,p_{x_1})$ (bottom).}
+  \label{fig:energy-sections}
+\end{figure}
+
+\subsection{The vertical bouncing family}\label{sec:vertical}
+Starting from the Case~4 orbit with smaller momentum ($E\approx11.08$), we
+follow the vertical orbit down in energy using the section $y_1=5$
+(Figure~\ref{fig:vertical}). Newton converges at every step. For
+$E\approx11.1$ down to $E\approx3.88$ all six multipliers lie on the unit
+circle, so the orbit is linearly stable. At $E\approx3.32$ it is unstable:
+one pair of multipliers has become real, $\lambda\approx2.59$ and $0.386$, and
+the instability grows as $E$ decreases further ($\max|\lambda|\approx6.04$ at
+$E\approx2.77$ and $5.21$ at $E\approx2.66$). The pair that leaves the unit circle
+is at $0.70\pm0.72i$ at $E\approx3.88$, so it must pass through $+1$ between
+$E\approx3.88$ and $3.32$. Figure~\ref{fig:multipliers}(a) shows this in
+terms of the stability index $\rho=(\lambda+\lambda^{-1})/2$ of each pair,
+which satisfies $|\rho|\le1$ exactly when the pair is on the unit circle. One
+index also comes within $10^{-2}$ of $-1$ near $E\approx6.1$ and $E\approx3.9$.
+Since our energy steps are about $0.55$, we cannot exclude short intervals of
+instability (period-doubling) there.
+
+% Generated by report/make_orbit_figures.py
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_vertical_family.pdf}
+  \caption{One period of the vertical family. (a)--(b) linearly stable, with
+  periods $T\approx6.87$ and $14.80$; (c) unstable, $\max|\lambda|\approx2.59$;
+  (d) at $E\approx2.55$ Newton converges to a different, S-shaped orbit, which
+  is linearly stable. The black dot is the section point ($y_1=5$,
+  $p_{y_1}>0$).}
+  \label{fig:vertical}
+\end{figure}
+
+% Generated by report/make_multiplier_figure.py
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_multipliers.pdf}
+  \caption{Stability indices $\rho=(\lambda+\lambda^{-1})/2$ of the three
+  multiplier pairs against energy; the shaded band $|\rho|\le1$ is linear
+  stability. (a) Vertical family: one index leaves the band through $+1$
+  between $E\approx3.88$ and $3.32$. Open squares: the S-shaped orbit found
+  at $E\approx2.55$. (b) Circular family: all indices stay in the band, but one
+  comes very close to $+1$ at $E\approx2.11$ and to $-1$ at $E\approx2.31$.
+  In (b) two of the three pairs coincide.}
+  \label{fig:multipliers}
+\end{figure}
+
+A multiplier pair colliding at $+1$ is where a symmetric periodic orbit can
+lose stability through a pitchfork (symmetry-breaking) bifurcation, in which
+two non-symmetric periodic orbits branch off. Our data are consistent with this:
+at $E\approx2.55$, Newton no longer converges to the vertical orbit but to a
+different, linearly stable orbit with $p_x\neq0$, whose paths are S-shaped
+(Figure~\ref{fig:vertical}(d)). We have not resolved the bifurcation itself,
+which would need finer energy steps near $E\approx3.3$--$3.9$.
+\todo{Confirm the interpretation with Prof.\ Turaev.}
+
+\subsection{The circular family}\label{sec:circular}
+Newton started directly from Case~3 stalls, but it converges from a nearby
+symmetric guess at the same energy, $\q_1=(3.6,3.6)$, using the diagonal
+section $x_1=y_1$. Following this orbit upward in energy
+(Figure~\ref{fig:circular}), Newton converges at all 21 energies from
+$E\approx2.01$ to $4.02$, and every computed orbit is linearly stable
+(Figure~\ref{fig:multipliers}(b)). Two of the three multiplier pairs coincide
+at every energy, presumably because of the symmetry of the orbit. Near the
+bottom of this range the remaining pair moves quickly around the unit circle
+and comes close to $+1$ ($E\approx2.11$) and to $-1$ ($E\approx2.31$), so with
+energy steps of $0.1$ there may be narrow instability intervals that we have
+not resolved. \todo{Check with Prof.\ Turaev whether the double pair is
+expected from the symmetry.} As the energy
+increases, the loop grows towards the walls: its crossing of the diagonal moves
+from $(3.59,3.59)$ to $(2.59,2.59)$. We then corrected the orbit at much higher
+energies, $E\approx52$ and $E\approx202$ (with $h=10^{-5}$ in the latter case).
+There it has become a diamond that touches the middle of each wall, and it is
+still linearly stable. So, among the orbits we tested, this family is the most
+robust, at least at the energies we sampled.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{fig_circular_family.pdf}
+  \caption{One period of the circular family; the two particles move on the
+  same curve, half a period apart. (a) For $2.0\le E\le4.0$ the loop grows
+  towards the walls. (b) At $E\approx52$ and $202$ it becomes a diamond
+  touching all four walls. Every orbit shown is linearly stable.}
+  \label{fig:circular}
+\end{figure}
+
+\subsection{Phase-space portrait at $E\approx52$}\label{sec:lyapunov}
+Figure~\ref{fig:lyapunov} shows the Poincar\'e section $y_1=5$, $p_{y_1}>0$ on
+$\M$ at $E\approx52.23$, the energy of the high-energy circular orbit, with
+every point coloured by the finite-time Lyapunov exponent of its trajectory.
+The phase space is clearly mixed. A large chaotic sea, where
+$\lambda_{\max}\approx0.15$--$0.27$, surrounds many islands of regular motion
+with $\lambda_{\max}$ close to zero. The histogram of $\lambda_{\max}$ is
+correspondingly bimodal, with a sharp peak near $0$ and a broad one around
+$0.2$. The largest islands are centred on the axis $p_{x_1}=0$ and come in
+pairs, because of the reflection symmetries of the section.
+
+Figure~\ref{fig:islands} shows the elliptic periodic orbits found at island
+centres. Orbit~\#1, which crosses the section once per period ($k=1$,
+$T\approx2.86$), is the vertical bouncing orbit of Section~\ref{sec:vertical},
+now at much higher energy. Orbits \#2--\#10 cross the section two to four times
+per period and have more complicated shapes, with periods up to $T\approx31$.
+They are the kind of stable periodic motion that, by \cite{turaev2022}, keeps
+the system from being ergodic at high energy. \todo{Check that this connection
+is fair, and that \#1 really is the continuation of the vertical family.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{lyapunov_poincare_section_reduced_report.jpg}
+  \caption{Poincar\'e section $y_1=5$, $p_{y_1}>0$ on the centre-symmetric
+  set $\M$ at $E\approx52.23$, with each crossing coloured by the finite-time
+  maximal Lyapunov exponent of its trajectory ($T=500$, 13\,920 trajectories).
+  Right: histogram of $\lambda_{\max}$. Dark points (small $\lambda_{\max}$)
+  form islands of regular motion in the chaotic sea.}
+  \label{fig:lyapunov}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{lyapunov_section_periodic_orbits_report.jpg}
+  \caption{Elliptic periodic orbits at island centres, $E\approx52.23$.
+  Top: their points on the section. Below: the orbits in the box (particle~1
+  blue, particle~2 orange; the black dot is the section point), with the number
+  $k$ of section crossings per period and the period $T$.}
+  \label{fig:islands}
+\end{figure}
+
+% ---------------------------------------------------------------------------
+\section{Discussion and limitations}\label{sec:discussion}
+
+The overall picture from these experiments is as follows. Near the equilibrium
+the motion is regular. Slightly above it, $E\approx2.03$--$3$, chaos is
+widespread. At higher energy, regular motion reappears around a small number of
+linearly stable periodic orbits: the vertical bouncing orbit, the circular
+orbit, and the island centres of Figure~\ref{fig:islands}. The vertical orbit
+loses stability as the energy decreases, apparently through a symmetry-breaking
+bifurcation, while the circular orbit is linearly stable at all the energies
+we sampled, over two orders of magnitude.
+
+\paragraph{Where continuation failed.}
+Following the circular family \emph{downwards} from the Case~3 energy $E_0$
+was much harder than following it upwards. With steps of $0.1\%$ in energy,
+Newton still converged at $0.999E_0$, $0.998E_0$ and $0.997E_0$, but the
+period of the computed orbit jumped from $101.8$ to $109.2$, $135.4$ and
+$140.6$. In addition, at $0.998E_0$ the orbit was no longer symmetric and was
+unstable (a multiplier $\lambda\approx-5.27$). So Newton was converging to
+\emph{different} nearby periodic orbits rather than following one branch. At
+$0.996E_0$ Newton failed: the residual stalled at about $0.06$. Retrying with
+half the energy step, Newton converged both at the midpoint and then at
+$0.996E_0$, so the immediate cause of the failure was the step size. Along the
+converged sequence we also recorded the distance of the multipliers from $1$,
+$\min_i|\lambda_i-1|$ (a fold would drive it to zero), and the condition number
+of $DP-I$; they went from $1.56$ to $0.20$ and from $10$ to $216$ respectively.
+This trend may indicate a multiplier approaching $1$, but because the orbits
+along the sequence are not one branch, we cannot draw a conclusion from it.
+Our interpretation is that several periodic orbits lie close together just
+below $E_0$, and that natural-parameter continuation with this step size
+cannot tell them apart. A method that
+follows a branch along its arclength, such as pseudo-arclength continuation
+\cite{kuznetsov}, together with a check that the symmetry is kept, would be the
+natural next step.
+
+\paragraph{Numerical reliability.}
+The periodic orbits are well resolved: residuals are at most $10^{-9}$, and the
+periods converge at second order under step halving. Multipliers are less
+accurate (about $10^{-6}$), since the Jacobians use finite differences; this
+does not affect the stable/unstable classification except very close to a
+bifurcation. Finite-time Lyapunov exponents only estimate the true exponents.
+Very thin chaotic layers, or very slow chaotic diffusion, may be invisible at
+$T=500$.
+
+\paragraph{Scope.}
+The orbits of Sections~\ref{sec:vertical}--\ref{sec:circular} lie on $\M$,
+but their multipliers are computed on the full six-dimensional section, so
+their linear stability includes perturbations that leave $\M$. In contrast,
+the Lyapunov exponents and island centres of Section~\ref{sec:lyapunov} are
+computed within $\M$ only; an orbit that is elliptic there could still be
+unstable in directions transverse to $\M$. \todo{re-run the transverse check in
+\texttt{lyapunov\_section\_periodic\_orbits.py} and report the result.}
+
+\paragraph{Open questions.}
+\begin{itemize}
+  \item Resolve the bifurcation of the vertical orbit near $E\approx3.3$--$3.9$
+        and follow the S-shaped orbits that appear.
+  \item How does the size of the chaotic sea change with energy at high energy,
+        and does the stable region grow as \cite{turaev2022} suggests?
+  \item How do the results depend on the exponents $\alpha,\beta$ and on the
+        shape of the box?
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section*{Code and reproducibility}
+All code is available at
+\url{https://github.com/jiajunwu1729/2particle-numerics}
+\todo{(tag/commit used for this report)}. Table~\ref{tab:repro} lists the
+script that produces each figure.
+
+\begin{table}[H]
+\centering
+\caption{Figures and the code that produces them.}
+\label{tab:repro}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Figure & Source\\
+\midrule
+\ref{fig:cases}, \ref{fig:energy-sections} & \texttt{report/make\_section\_figures.py} (same computation as \texttt{report03.ipynb})\\
+\ref{fig:vertical}, \ref{fig:circular} & \texttt{report/make\_orbit\_figures.py} (periodic points from \texttt{report04.ipynb})\\
+\ref{fig:multipliers} & \texttt{report/make\_multiplier\_figure.py} (multipliers from \texttt{report04.ipynb})\\
+\ref{fig:lyapunov} & \texttt{lyapunov\_poincare\_section.py}\\
+\ref{fig:islands} & \texttt{lyapunov\_section\_periodic\_orbits.py}\\
+& (both reduced for the PDF by \texttt{report/compress\_figures.py})\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section*{Acknowledgements}
+I thank Prof.\ Dmitry Turaev for suggesting this project and for his guidance.
+\todo{funding, if any.}
+
+% ---------------------------------------------------------------------------
+\begin{thebibliography}{9}
+\bibitem{turaev2022}
+V.~Rom-Kedar and D.~Turaev,
+Stable motions of high energy particles interacting via a repelling potential,
+arXiv:2208.14993v2, 2023. \todo{check whether it has since been published}
+
+\bibitem{hairer2006}
+E.~Hairer, C.~Lubich and G.~Wanner,
+\emph{Geometric Numerical Integration}, 2nd ed., Springer, 2006.
+
+\bibitem{kuznetsov}
+Yu.~A.~Kuznetsov, \emph{Elements of Applied Bifurcation Theory}, 3rd ed.,
+Springer, 2004.
+
+\bibitem{meiss}
+J.~D.~Meiss, \emph{Differential Dynamical Systems}, revised ed., SIAM, 2017.
+\end{thebibliography}
+
+\end{document}
