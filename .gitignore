@@ -9,7 +9,7 @@ tmp/
 
 # Intermediate full-size PNGs written by lyapunov_*.py and plot_selected_orbits.py;
 # the report uses the PDFs and *_report.jpg files in images/
-images/*.png
+#images/*.png
 
 # LaTeX build files
 *.aux
