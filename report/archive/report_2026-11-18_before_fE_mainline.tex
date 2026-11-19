@@ -1,0 +1,792 @@
+% Summer research report: two-particle Hamiltonian system
+% Restructured 2026-11-18 around the regular fraction f(E). Earlier versions:
+%   report/archive/report_2026-11-07_before_simplify.tex
+%   report/archive/report_2026-11-18_before_restructure.tex
+% Data sources: report01-04.ipynb, case3_newton_failure_diagnosis.ipynb,
+% lyapunov_*.py, regular_fraction_scan.py; figures from the scripts in Table 2.
+% Text marked with \todo{...} still needs checking or a decision.
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+\graphicspath{{../images/}{figures/}}
+
+% Figures and tables use [H] (float package): placed exactly where they are
+% in the source, right after the paragraph that first refers to them.
+\usepackage{float}
+
+% Visible placeholder. For a clean draft use \newcommand{\todo}[1]{}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\newcommand{\q}{\mathbf{q}}
+\newcommand{\p}{\mathbf{p}}
+\newcommand{\Vs}{V_{\mathrm{sym}}}
+\newcommand{\Eeq}{E_{\mathrm{eq}}}
+
+\title{Regular and Chaotic Motion of Two Repelling Particles in a Box:\\
+a Numerical Study}
+\author{Jiajun Wu\\[2pt]
+\small Department of Mathematics, Imperial College London\\
+\small Summer research project (2026), supervised by Prof.\ Dmitry Turaev}
+\date{November 2026}
+
+\begin{document}
+\maketitle
+
+% ---------------------------------------------------------------------------
+\begin{abstract}
+We study numerically two particles in a square box that repel each other and
+are pushed back by the walls, restricting to motions that are symmetric about
+the centre of the box. Our main result is the fraction $f(E)$ of the energy
+surface filled by regular motion, measured with finite-time Lyapunov exponents
+for initial conditions sampled uniformly on the energy surface. Near the
+bottom of the four potential wells all motion is regular. As the energy
+approaches $E_s\approx1.9969$, the energy of the saddles between the wells,
+chaos appears, and around $E_s$ the regular fraction drops sharply, to about
+$4\%$ at $E\approx2.05$; it then rises slowly, to about one third at $E=200$. The regular motion
+at high energy lies on islands around stable periodic orbits. We follow two of
+these orbits in energy with Newton's method. A ``vertical'' orbit, of the type
+studied by Rom-Kedar and Turaev, is linearly stable for $E\gtrsim3.9$ and
+unstable below. A ``circular'' orbit around the centre is linearly stable at
+every energy we computed, from $E\approx2$ to $E\approx202$; at high energy it
+approaches a diamond-shaped billiard orbit.
+\end{abstract}
+
+% ---------------------------------------------------------------------------
+\section{Introduction}\label{sec:intro}
+
+Two particles that repel each other inside a box form a very simple system,
+but their long-time motion is not obvious. They might settle into a repeating
+pattern, or move chaotically over the whole box, depending on the energy and
+the initial condition.
+
+Rom-Kedar and Turaev \cite{turaev2022} proved that, under mild conditions,
+the motion of $N$ repelling particles in a bounded region is not ergodic at
+sufficiently high energies. They construct stable periodic orbits that are
+surrounded by a set of positive measure of quasi-periodic motions; trajectories
+that start in this set stay near the periodic orbit for all time, so they
+cannot explore the whole energy surface. For particles in a rectangular box,
+the stable orbit they construct is one in which every particle moves fast in
+the same direction, say vertically, each on its own line and in synchrony with
+the others \cite[Sec.~2.6]{turaev2022}. Their result is asymptotic: it holds
+only above some energy that is not given explicitly, and it needs the wall
+potential to be steep enough (Section~\ref{sec:vertical}). It therefore says
+nothing about moderate energies, and nothing about how much of the energy
+surface is regular.
+
+In this project we study numerically the simplest case, two particles in a
+square box, restricted to motions that are symmetric about the centre. We ask
+how the fraction of regular motion on the energy surface depends on the
+energy. One might expect regular motion to dominate at both ends: near the
+equilibrium, where the motion is a small oscillation, and at high energy,
+where the particles move almost like billiard balls in a square, whose
+single-particle motion is integrable. We test this by measuring the regular
+fraction $f(E)$ from the equilibrium up to $E=200$. We then explain its shape:
+at low energy by the shape of the potential, and at high energy by stable
+periodic orbits, two families of which we follow in energy.
+
+The report is organised as follows. Section~\ref{sec:model} describes the
+model and its potential landscape, and Section~\ref{sec:methods} the numerical
+methods. Section~\ref{sec:results} presents the results: examples of the three
+kinds of motion, the regular fraction $f(E)$, the transition at low energy,
+the phase space at high energy, and the vertical and circular periodic orbits.
+Section~\ref{sec:discussion} summarises the findings and their limitations.
+All results are numerical; none of them is proved.
+
+% ---------------------------------------------------------------------------
+\section{The model}\label{sec:model}
+
+Two particles with positions $\q_i=(x_i,y_i)$ and momenta $\p_i$ ($i=1,2$)
+move in the box $(0,L_x)\times(0,L_y)$. The Hamiltonian is
+\begin{equation}\label{eq:H}
+  H(\q,\p)=\sum_{i=1}^{2}\frac{|\p_i|^2}{2m_i}
+  + V\bigl(|\q_1-\q_2|\bigr) + U(\q_1) + U(\q_2),
+\end{equation}
+where
+\begin{equation}\label{eq:potentials}
+  V(r)=k\,r^{-\alpha},\qquad
+  U(x,y)=C\Bigl[x^{-\beta}+(L_x-x)^{-\beta}+y^{-\beta}+(L_y-y)^{-\beta}\Bigr].
+\end{equation}
+$V$ is the repulsion between the particles and $U$ pushes each particle away
+from the walls. Both become infinite at collision or at a wall, so the
+particles can never collide or leave the box.
+
+We take $k=C=\alpha=\beta=1$, $m_1=m_2=1$ and $L_x=L_y=10$. These are simply
+convenient values of order one; the model is not meant to describe a specific
+physical system.
+
+\paragraph{Energy.} The energy $H$ is conserved. Because of the walls,
+momentum and angular momentum are not.
+
+\paragraph{Symmetric motions.}
+If particle~2 starts at the point reflection of particle~1 through the centre
+of the box, $\q_2=(10,10)-\q_1$, with the opposite momentum $\p_2=-\p_1$, then
+by symmetry the two particles stay in this position relative to each other for
+all time. We call such motions \emph{centre-symmetric}. For them it is enough
+to follow particle~1. Its motion is a Hamiltonian system with two degrees of
+freedom, and the total energy is
+\begin{equation}\label{eq:Hsym}
+  H_{\mathrm{sym}}(\q_1,\p_1)=|\p_1|^2+\Vs(\q_1),\qquad
+  \Vs(\q_1)=V\bigl(|2\q_1-(10,10)|\bigr)+2\,U(\q_1),
+\end{equation}
+(the Hamiltonian that generates the motion of particle~1 is
+$\tfrac12H_{\mathrm{sym}}$). All initial conditions in this report are
+centre-symmetric.
+
+\paragraph{Wells and saddles.}
+Figure~\ref{fig:potential} shows $\Vs$. By the symmetry of the square it has
+four equivalent minima, at $\q_1=(a,a)$, $(10-a,a)$, $(a,10-a)$ and
+$(10-a,10-a)$ with $a\approx3.6645$, all with energy
+$\Eeq\approx1.98765$; this is the equilibrium, with the particles at rest on a
+diagonal of the box. Between neighbouring minima there are four saddles, at
+$\q_1\approx(3.1926,5)$ and its images, with energy $E_s\approx1.99689$. The
+centre of the box, where the particles would collide, is a singularity. So the
+bottom of the potential is a ring-shaped valley around the centre, with four
+wells separated by saddles only $E_s-\Eeq\approx0.0092$ higher
+(Figure~\ref{fig:potential}(d)). For $E<E_s$ the region $\{\Vs<E\}$ that
+particle~1 can reach consists of four separate pieces, one around each
+minimum; for $E>E_s$ they join into a ring (Figure~\ref{fig:potential}(b,c)).
+% Values from images/make_potential_figure.py (2026-11-18): well Hessian
+% eigenvalues 0.0228, 0.2454; saddle Hessian eigenvalues -0.0207, 0.3050.
+
+% Generated by images/make_potential_figure.py
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_potential.pdf}
+  \caption{The potential $\Vs(\q_1)$ of a centre-symmetric motion. (a)
+  Contours near the bottom; black dots are the four minima, red crosses the
+  four saddles, and the white line is the level $\Vs=E_s$. (b), (c) The region
+  $\{\Vs<E\}$ that particle~1 can reach just below and just above $E_s$.
+  (d) The bottom of the valley, $\min_\rho\Vs$ along each ray from the centre,
+  against the angle of the ray. Panels (a)--(c) show only the central part of
+  the box.}
+  \label{fig:potential}
+\end{figure}
+
+% ---------------------------------------------------------------------------
+\section{Numerical methods}\label{sec:methods}
+
+\subsection{Time integration}
+We integrate the equations of motion with the leapfrog method:
+\begin{equation}\label{eq:leapfrog}
+  \p^{n+1/2}=\p^n+\tfrac h2 F(\q^n),\quad
+  \q^{n+1}=\q^n+h\,\p^{n+1/2},\quad
+  \p^{n+1}=\p^{n+1/2}+\tfrac h2 F(\q^{n+1}),
+\end{equation}
+where $F=-\nabla(V+U)$ is the force and $h$ the time step. Leapfrog is a
+second-order method whose energy error stays small and does not grow over long
+times \cite{hairer2006}, which is important because we integrate for up to
+$10^4$ time units. We use smaller steps when the particles move faster, from
+$h=10^{-2}$ near the equilibrium down to $h=10^{-5}$ at $E\approx202$. For the
+periodic orbits the relative energy error is at most about $10^{-6}$, and
+halving $h$ changes the computed periods by less than one part in $10^{7}$.
+For the regular-fraction scan (Section~\ref{sec:fraction-method}) we use
+$h=\min\bigl(5\times10^{-3},\,0.026/E\bigr)$, which keeps the relative energy
+error below $6\times10^{-4}$.
+% Step-halving check run 2026-11-07: E=11.075 T=6.87461211/...275/...291;
+% E=3.876 T=14.80128691/...697/...699; E=3.011 T=23.80233268/...379/...407.
+% Scan: max|dE|/E = 1.7e-4 (E=10), 1.6e-4 (E=52.23), 6.4e-4 (E=200).
+
+\subsection{Poincar\'e sections}
+A Poincar\'e section records the state each time the orbit crosses a chosen
+surface in a chosen direction, for example $y_1=5$ with $p_{y_1}>0$. The full
+phase space is 8-dimensional; fixing the energy and the surface leaves a
+6-dimensional section, which is the one Newton's method below works on. For a
+centre-symmetric motion, however, the state of particle~2 is fixed by that of
+particle~1, so the motion lies in the 4-dimensional space
+$(x_1,y_1,p_{x_1},p_{y_1})$. On a fixed energy level and the surface $y_1=c$,
+$p_{y_1}>0$, a point is then determined by $(x_1,p_{x_1})$, because $p_{y_1}$
+follows from the energy. The section of a centre-symmetric motion is therefore
+exactly two-dimensional, not a projection. In the same way, the surface
+$x_1=c$, $p_{x_1}>0$ gives the coordinates $(y_1,p_{y_1})$. Since a time step
+usually jumps over the surface, we locate each crossing by linear
+interpolation between the two neighbouring steps, or, where Newton's method
+needs it more accurately, by a shortened last leapfrog step that lands on the
+surface.
+
+On a two-dimensional section the pattern of the points tells us the type of
+motion \cite{lichtenberg1992}: a periodic orbit that crosses the section $k$
+times per period gives $k$ points, a regular (quasi-periodic) orbit gives
+points on one or several smooth closed curves, and a chaotic orbit gives points
+scattered over a two-dimensional region. This reading relies on the section
+being two-dimensional: in a projection of a higher-dimensional section,
+quasi-periodic motion could also look scattered.
+
+\subsection{Lyapunov exponents}\label{sec:lyap-method}
+The Lyapunov exponent $\lambda_{\max}$ of a trajectory measures how fast two
+nearby trajectories separate: it is $0$ for regular motion and positive for
+chaotic motion. We estimate it by following, along the trajectory, a small
+perturbation with the linearised leapfrog map, renormalising it every 40 steps
+and averaging the logarithm of its growth over a time $T$. The perturbation is
+kept centre-symmetric, so $\lambda_{\max}$ measures instability within the
+centre-symmetric motions only.
+
+To decide whether a trajectory is regular we need a threshold for
+$\lambda_T$. For a regular trajectory nearby trajectories separate only
+linearly in time, so the finite-time estimate $\lambda_T$ is not exactly $0$
+but of order $\ln T/T$, and it decreases as $T$ grows. For a chaotic one they
+separate exponentially, and $\lambda_T$ tends to a positive constant. We
+therefore call a trajectory \emph{regular} if
+\begin{equation}\label{eq:threshold}
+  \lambda_T < c\,\frac{\ln T}{T},\qquad c=3.2 .
+\end{equation}
+
+To see whether the result depends on $c$, we looked at the values of
+$\lambda_T$, in units of $\ln T/T$, for all trajectories of the
+regular-fraction scan of Section~\ref{sec:fraction-method}: $3600$
+trajectories at each of $23$ energies from $E=1.99$ to $200$.
+At most energies only very few trajectories (at most $2.5\%$) have
+$\lambda_T$ between $2\ln T/T$ and $5\ln T/T$, so any $c$ between $2$ and $5$
+gives almost the same classification; Figure~\ref{fig:threshold} shows this
+gap at three energies. The exception is $E=1.995$--$1.997$, just below and at
+$E_s$, where the chaos is weakest, with up to $9\%$ of the trajectories in the
+gap. We take
+$c=3.2\approx\sqrt{2\cdot5}$, the middle of the gap on the logarithmic scale,
+and report the results for $c=2$ and $c=5$ as well.
+% Statistics from images/make_threshold_figure.py (standard T, 2026-11-18):
+% fraction with 2<u<5: <= 0.025 except E=1.995 (0.078), 1.996 (0.094),
+% 1.997 (0.033).
+
+% Generated by images/make_threshold_figure.py
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_threshold.pdf}
+  \caption{Histograms of $\lambda_T$ in units of $\ln T/T$ for the $3600$
+  trajectories of the regular-fraction scan at three energies (standard $T$).
+  The left group is regular, the right group chaotic. Red line: the threshold
+  $c=3.2$; blue band: $2\le c\le5$.}
+  \label{fig:threshold}
+\end{figure}
+
+\subsection{The regular fraction}\label{sec:fraction-method}
+We define the regular fraction $f(E)$ as the fraction of the energy surface
+$\{H_{\mathrm{sym}}=E\}$, measured with the Liouville (microcanonical)
+measure, that is filled by regular trajectories. To estimate it we sample
+initial conditions from this measure, integrate each one and count the regular
+ones.
+
+For the two-degree-of-freedom Hamiltonian~\eqref{eq:Hsym} the sampling is
+simple. Integrating the microcanonical density over the momenta gives
+$\int\delta\bigl(E-|\p_1|^2-\Vs(\q_1)\bigr)\,d^2\p_1=\pi$, which does not depend
+on $\q_1$. So we draw $\q_1$ uniformly from the accessible region
+$\{\Vs<E\}$, the direction of $\p_1$ uniformly from $[0,2\pi)$, and set
+$|\p_1|=\sqrt{E-\Vs(\q_1)}$. We use $3600$ trajectories per energy, so the
+statistical error of $f$ is at most about $\pm0.008$.
+
+We do not sample on a Poincar\'e section for two reasons. First, a section
+misses every trajectory that never crosses it: no trajectory reaches $y_1=5$
+for $E<E_s$, and at high energy the horizontal analogue of the vertical orbit
+never does. Second, area on the section is not the same as volume on the
+energy surface: the volume filled by a set of trajectories is its area on the
+section weighted by the return time.
+
+For $E>2.05$ the integration time is chosen so that every energy gets a
+similar number of wall-to-wall flights:
+$T=\min\bigl(2500,\;500\sqrt{52.23/E}\bigr)$. For $E\le2.05$, near the
+equilibrium and the saddles, the motion is a slow oscillation rather than a
+flight between the walls, and the chaos is very weak, so we use the longer
+time $T=10\,000$. Section~\ref{sec:fraction} checks that these times are long
+enough.
+
+\subsection{Finding periodic orbits}\label{sec:newton}
+Let $P$ be the Poincar\'e map, which sends a point $z$ on the section to the
+point where the orbit next crosses it. At a fixed energy, $z$ has six
+coordinates. A periodic orbit is a fixed point, $P(z^*)=z^*$ (or
+$P^k(z^*)=z^*$ if the orbit crosses the section $k$ times per period). We solve
+this equation with Newton's method,
+\begin{equation}\label{eq:newton}
+  z_{j+1}=z_j-\bigl(DP(z_j)-I\bigr)^{-1}\bigl(P(z_j)-z_j\bigr),
+\end{equation}
+where the Jacobian $DP$ is computed by finite differences. If a full Newton
+step does not reduce the error, we take a shorter step. From a good initial
+guess Newton converges in 3--6 iterations, with $|P(z)-z|$ between $10^{-9}$
+and $10^{-13}$.
+
+\paragraph{Stability.}
+The eigenvalues $\lambda$ of $DP(z^*)$, called Floquet multipliers, tell us
+what happens to a small perturbation of the periodic orbit after each period:
+it is multiplied by roughly $|\lambda|$ in the corresponding direction. If all
+multipliers satisfy $|\lambda|=1$, small perturbations neither grow nor shrink
+and the orbit is \emph{linearly stable}. If some $|\lambda|>1$, perturbations
+grow and the orbit is \emph{unstable}. Since our Jacobians are accurate to
+about $10^{-6}$, we count $|\lambda|$ within $10^{-3}$ of $1$ as equal to $1$.
+
+\paragraph{Following an orbit in energy.}
+To see how a periodic orbit changes with energy, we change $E$ in small steps
+and use the orbit found at the previous energy, with its momentum rescaled, as
+the starting guess for Newton at the new energy.
+
+% ---------------------------------------------------------------------------
+\section{Results}\label{sec:results}
+
+\subsection{Three kinds of motion}\label{sec:sections}
+We first look at single trajectories. We start from the position
+$\q_1=(a,a)+0.25\,(1,1)$ near a minimum and give the particles vertical
+momenta of increasing size (Figure~\ref{fig:energy-sections}).
+\begin{itemize}
+  \item At $E\approx2.007$ the section points lie on smooth curves: regular
+        motion.
+  \item At $E\approx2.028$ and $E\approx2.97$ the points are scattered and the
+        trajectory wanders over a large part of the box: chaotic motion.
+  \item At $E\approx11$ the motion is regular again. The particles stay in two
+        thin vertical strips, close to the stable vertical periodic orbit of
+        Section~\ref{sec:vertical}.
+\end{itemize}
+These are single trajectories, chosen by hand. They show what regular and
+chaotic motion look like, but not how common each kind is; that is measured in
+the next section.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_energy_sections.pdf}
+  \caption{Starting from $\q_1=(a,a)+0.25\,(1,1)$ with vertical momenta
+  $\pm v$ at four energies: trajectories (top) and 200 returns to the section
+  $y_1=a$, $p_{y_1}>0$ (bottom).}
+  \label{fig:energy-sections}
+\end{figure}
+
+\subsection{The regular fraction}\label{sec:fraction}
+Figure~\ref{fig:fraction} shows the regular fraction $f(E)$ at 23 energies
+from $E=1.99$ to $E=200$. The curve has three stages.
+\begin{itemize}
+  \item Near the bottom of the wells all trajectories are regular: $f=1$ at
+        $E=1.990$. Already below $E_s$, however, $f$ starts to fall:
+        $f\approx0.94$ at $E=1.995$ and $0.67$ at $E=1.996$.
+  \item Around and just above $E_s$ the regular fraction drops steeply:
+        $f\approx0.45$ at $E=1.997$, $0.30$ at $E=2.000$, $0.14$--$0.21$ for
+        $E=2.005$--$2.02$, and a minimum of $f\approx0.04$ at $E=2.05$.
+  \item Above that, $f$ rises again, to about $0.20$--$0.27$ for
+        $E=2.2$--$3$, and then slowly, to $0.28$ at $E=10$ and about
+        $0.32$--$0.34$ for $E=52$--$200$.
+\end{itemize}
+So the expectation of Section~\ref{sec:intro} holds near the equilibrium, but
+only in a very narrow range of energies, and it does not hold, up to $E=200$,
+at high energy: there the regular fraction grows only slowly, and about two
+thirds of the energy surface is still chaotic.
+
+% Generated by images/make_fraction_figure.py
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{fig_regular_fraction.pdf}
+  \caption{Regular fraction $f(E)$ of the (centre-symmetric) energy surface,
+  against $E-\Eeq$ (bottom axis) and $E$ (top axis), with the threshold
+  $c=3.2$ of~\eqref{eq:threshold} and the integration times of
+  Section~\ref{sec:fraction-method}. Each point uses $3600$ trajectories
+  sampled uniformly on the energy surface; the statistical error is at most
+  $\pm0.008$. The lines between points only guide the eye. Dashed line: the
+  saddle energy $E_s$.}
+  \label{fig:fraction}
+\end{figure}
+
+\paragraph{Dependence on the threshold.}
+For $E\ge1.997$ the thresholds $c=2$ and $c=5$ give values of $f$ within
+$0.03$ of those in Figure~\ref{fig:fraction}. At $E=1.995$ and $1.996$, where
+the chaos is weakest, the dependence is larger: $f=0.90$--$0.98$ and
+$0.64$--$0.73$.
+
+\paragraph{Is $T$ long enough?}
+Table~\ref{tab:convergence} compares, for the same trajectories, the regular
+fraction with the standard integration time $T$ and with $2T$, at every
+energy. A longer time turns some trajectories that looked regular into chaotic
+ones; the opposite happened only once (one trajectory at $E=1.995$), so in
+practice $f$ can only decrease as $T$ grows. These are trajectories that stay
+near an island for a long time before escaping.
+
+For $E>2.05$ the change is at most $0.02$, comparable to the statistical
+error, so the curve in Figure~\ref{fig:fraction} is reliable there.
+
+For $E\le2.05$ the time $T=2500$ given by the rule for higher energies is far
+too short: at $E=1.996$, for example, it gives $f=0.996$, against $0.667$ with
+$T=10\,000$, and at $E=1.997$ it gives $0.631$ against $0.448$. This is why we
+use $T=10\,000$ there. Going on from $T=10\,000$ to $20\,000$ changes $f$ much
+less: by $0.044$ at $E=1.995$ and $0.037$ at $E=1.996$, by about $0.02$ at
+$E=1.997$ and $2.01$, and by at most $0.015$ at the other energies. So the
+values for $E\le2.05$ are close to converged; just below $E_s$ they may still
+be a few hundredths too high.
+
+\begin{table}[H]
+\centering
+\caption{Regular fraction $f$ (threshold $c=3.2$) for the same $3600$
+trajectories with the standard integration time $T$ and with $T'=2T$.
+``Changed'' is the number of trajectories classified differently; all of them
+are regular with $T$ and chaotic with $2T$, except one trajectory at
+$E=1.995$ (chaotic with $T$, regular with $2T$).}
+\label{tab:convergence}
+\begin{tabular}{@{}rrrrrr@{}}
+\toprule
+$E$ & $T$ & $f(T)$ & $T'$ & $f(T')$ & changed\\
+\midrule
+1.990 & 10\,000 & 1.000 & 20\,000 & 1.000 & 0\\
+1.995 & 10\,000 & 0.939 & 20\,000 & 0.895 & 159\\
+1.996 & 10\,000 & 0.667 & 20\,000 & 0.630 & 134\\
+1.997 & 10\,000 & 0.448 & 20\,000 & 0.428 & 73\\
+1.998 & 10\,000 & 0.354 & 20\,000 & 0.339 & 51\\
+1.999 & 10\,000 & 0.315 & 20\,000 & 0.301 & 52\\
+2.000 & 10\,000 & 0.298 & 20\,000 & 0.292 & 20\\
+2.005 & 10\,000 & 0.199 & 20\,000 & 0.189 & 37\\
+2.010 & 10\,000 & 0.207 & 20\,000 & 0.188 & 71\\
+2.020 & 10\,000 & 0.141 & 20\,000 & 0.134 & 24\\
+2.050 & 10\,000 & 0.036 & 20\,000 & 0.036 & 1\\
+\midrule
+2.10  & 2494 & 0.117 & 4987 & 0.116 & 4\\
+2.20  & 2436 & 0.233 & 4872 & 0.229 & 15\\
+2.40  & 2333 & 0.223 & 4665 & 0.221 & 7\\
+2.70  & 2199 & 0.266 & 4398 & 0.257 & 31\\
+3.00  & 2086 & 0.204 & 4173 & 0.204 & 1\\
+4.00  & 1807 & 0.247 & 3614 & 0.236 & 43\\
+6.00  & 1475 & 0.281 & 2950 & 0.262 & 69\\
+10.0  & 1143 & 0.281 & 2285 & 0.277 & 16\\
+20.0  & 808  & 0.311 & 1616 & 0.299 & 42\\
+52.23 & 500  & 0.328 & 1000 & 0.315 & 44\\
+100   & 361  & 0.316 & 723  & 0.306 & 35\\
+200   & 256  & 0.337 & 511  & 0.323 & 48\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+None of this changes the shape of $f(E)$: the steep drop around $E_s$, the
+minimum at $E=2.05$, the dip at $E=3$ and the slow rise at high energy all
+remain with the longer times.
+
+\paragraph{Is $f$ still growing at high energy?}
+From $E=10$ to $E\approx52$ the regular fraction clearly grows, from $0.28$ to
+$0.33$. Above that it stays at about $0.32$--$0.34$: the values at $E\approx52$,
+$100$ and $200$ differ by about $0.01$--$0.02$, which is only one to two times
+the statistical error of each value ($\pm0.008$), and they do not increase
+steadily ($0.328$, $0.316$, $0.337$). So we cannot tell whether $f$ is still
+growing slowly above $E\approx52$ or has levelled off; larger samples and
+higher energies would be needed.
+
+\subsection{The transition at low energy}\label{sec:transition}
+The steep drop of $f$ happens around the saddle energy $E_s$
+(Figure~\ref{fig:potential}). Near the bottom of a well the potential is
+nearly quadratic, so the motion is close to two independent harmonic
+oscillations, which is an integrable system; the nonlinear terms are small,
+and by KAM theory almost all trajectories stay on invariant tori
+\cite{lichtenberg1992}. This explains $f=1$ at $E=1.990$.
+
+As $E$ approaches $E_s$, the part of a well that particle~1 can reach extends
+up to the saddles (Figure~\ref{fig:potential}(b)). Near a saddle the particle
+moves slowly, and what it does next depends very sensitively on how it
+arrives: it may come close to passing over the saddle and then turn back.
+Motion near the separatrices of a saddle is the classic source of chaos in
+Hamiltonian systems \cite{lichtenberg1992}, and the chaotic layer around a
+separatrix has a finite width in energy, on both sides of the saddle energy.
+This is what we see. At $E=1.995$ and $1.996$ no trajectory leaves its well
+(none crosses the line $y_1=5$), yet about $6\%$ and $33\%$ of them are
+chaotic. In a sample of nine trajectories at $E=1.996$, the chaotic ones were
+those that reached towards the saddles, while most regular ones stayed near
+the bottom of the well; we have not checked this systematically.
+
+For $E>E_s$ particle~1 can also pass over the saddles from one well to the
+next, and the chaotic regions of the four wells join. Because the barrier is
+so low, $E_s-\Eeq\approx0.0092$, most trajectories soon come near a saddle:
+the fraction of trajectories that cross $y_1=5$ (that is, pass over a saddle)
+grows from $0$ below $E_s$ to $34\%$ at $E=1.997$, $72\%$ at $E=2.000$ and
+over $99\%$ at $E=2.05$, while $f$ falls to its minimum, $0.04$ at $E=2.05$.
+This explanation is an interpretation of the data, not a proof.
+
+As $E$ grows further, the wells and saddles become irrelevant compared with the
+total energy, and new stable periodic orbits appear, such as the vertical orbit
+of Section~\ref{sec:vertical}. Their islands provide the regular motion at high
+energy, which we look at next.
+
+\subsection{Chaotic region and stable islands at \texorpdfstring{$E\approx52$}{E = 52}}\label{sec:lyapunov}
+Figure~\ref{fig:lyapunov} shows the Poincar\'e section $y_1=5$, $p_{y_1}>0$ at
+$E\approx52.23$, with every point coloured by the Lyapunov exponent of its
+trajectory. For this picture the initial conditions are a uniform grid of
+13\,920 points on the section, integrated for $T=500$. Most of the section is
+a chaotic region with $\lambda_{\max}\approx0.15$--$0.27$. Inside it there are
+many islands of regular motion with $\lambda_{\max}\approx0$. The histogram on
+the right has two clear peaks, one for regular and one for chaotic
+trajectories.
+
+The islands cover $33\%$ of the section area, or $31\%$ when each trajectory is
+weighted by its return time. Sampling on the energy surface gives
+$f\approx0.33$ with the same $T=500$ (Section~\ref{sec:fraction}). The three numbers are close, so at
+this energy the section is a fair picture of the whole energy surface.
+
+At the centre of each island there is a stable periodic orbit.
+Figure~\ref{fig:islands} shows ten of them, found with Newton's method. The
+simplest one, \#1, is the vertical orbit of Section~\ref{sec:vertical} at this
+higher energy: computing the vertical orbit directly at $E\approx52.23$ gives
+the same period, $T\approx2.861$, and it is linearly stable.
+% Checked 2026-11-08 with continue_to_periodic_orbit: T=2.86096, x1*=3.84204,
+% max|lambda|=1.00000001 on the full 6-dimensional section.
+The others cross the section two to four times per period and have more
+complicated shapes. The theorem of \cite{turaev2022} predicts an island of
+this kind only around the vertical orbit, and only under the conditions
+discussed in Section~\ref{sec:vertical}; the other islands are not covered by
+it. We have not measured how much of the regular fraction each island
+contributes.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{lyapunov_poincare_section_reduced_report.jpg}
+  \caption{Poincar\'e section at $E\approx52.23$, each point coloured by the
+  Lyapunov exponent $\lambda_{\max}$ of its trajectory (13\,920 trajectories,
+  $T=500$). Dark points ($\lambda_{\max}\approx0$) form islands of regular
+  motion in the chaotic region. Right: histogram of $\lambda_{\max}$.}
+  \label{fig:lyapunov}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{lyapunov_section_periodic_orbits_report.jpg}
+  \caption{Stable periodic orbits at the centres of islands, $E\approx52.23$.
+  Top: their points on the section. Below: the orbits in the box, with the
+  number $k$ of crossings per period and the period $T$.}
+  \label{fig:islands}
+\end{figure}
+
+\subsection{The vertical orbit: shape and stability as the energy changes}\label{sec:vertical}
+This orbit is of the type constructed for a rectangular box in
+\cite[Sec.~2.6]{turaev2022}: the two particles move fast in the vertical
+direction, each on its own line. Because the motion is centre-symmetric,
+particle~1 hits the top wall exactly when particle~2 hits the bottom wall.
+This is the ``simultaneous impacts'' case, covered by Theorem~5 of
+\cite{turaev2022}. That theorem needs the wall potential to behave like
+$(\text{distance to the wall})^{-\beta}$ with $\beta>6$, whereas ours has
+$\beta=1$, and it holds only at sufficiently high energy. So the theorem
+does not guarantee that the orbit is stable in our system; the results below
+are a numerical check of whether it is.
+
+Starting from the vertical orbit at $E\approx402$ (Appendix~\ref{app:cases},
+Case~4) with a smaller momentum ($E\approx11.08$), we followed the orbit down
+in energy (Figure~\ref{fig:vertical}). Newton converged at every energy. The
+results are:
+\begin{itemize}
+  \item For $E$ from $11.1$ down to $3.88$, all multipliers have $|\lambda|=1$:
+        the orbit is linearly stable.
+  \item At $E\approx3.32$, $2.77$ and $2.66$ the orbit is unstable, with largest
+        multiplier $|\lambda|\approx2.59$, $6.04$ and $5.21$. So it loses
+        stability somewhere between $E\approx3.9$ and $3.3$.
+  \item At $E\approx2.55$, Newton no longer found the vertical orbit but a
+        different, stable orbit in which the particles move along S-shaped
+        paths (Figure~\ref{fig:vertical}(d)).
+\end{itemize}
+We did not study the transition between $E\approx3.9$ and $3.3$ in detail;
+this would need much smaller energy steps. So, numerically, the orbit is
+stable well outside the conditions of the theorem, down to $E\approx3.9$,
+twice the equilibrium energy. Below that it is unstable and has no island of
+regular motion around it. The regular fraction rises from $0.20$ at $E=3$ to
+$0.25$ at $E=4$ (Figure~\ref{fig:fraction}), the energy range in which the
+vertical orbit becomes stable; we have not checked whether this rise comes
+from its island.
+
+% Generated by images/make_orbit_figures.py
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_vertical_family.pdf}
+  \caption{One period of the vertical orbit at four energies. (a), (b) stable;
+  (c) unstable; (d) at $E\approx2.55$ Newton found a different, S-shaped orbit.
+  The black dot is where the orbit crosses the section $y_1=5$.}
+  \label{fig:vertical}
+\end{figure}
+
+\subsection{The circular orbit: shape and stability as the energy changes}\label{sec:circular}
+In this orbit the two particles go round the centre of the box, always opposite
+each other. We found it near the trajectory of Case~3 in
+Appendix~\ref{app:cases}: Newton started directly from Case~3 did not converge,
+but it did converge from a nearby symmetric starting point at the same energy,
+using the diagonal $x_1=y_1$ as the section. We then followed this orbit upward
+in energy (Figure~\ref{fig:circular}). Newton converged at all 21 energies from
+$E\approx2.01$ to $4.02$, and every orbit found is linearly stable. As the
+energy increases, the loop grows towards the walls. We also computed the orbit
+at much higher energies, $E\approx52$ and $E\approx202$: it has become a
+diamond that touches the middle of each wall, and it is still linearly stable.
+Since we only computed the orbit at a finite set of energies, we cannot rule
+out short energy intervals in between where it is unstable.
+
+At high energy the orbit is thus close to a periodic orbit of a single
+particle in a square billiard, the diamond that hits each wall at its
+midpoint; the two particles stay far apart on it, so their repulsion is only a
+small perturbation. This is the billiard-like motion expected at high energy.
+The two particles follow the same curve half a period apart, so this is also a
+choreographic motion in the sense of \cite{turaev2022}. Diamond-shaped orbits
+are mentioned there as another family of periodic motions in a box on which
+such choreographies could be built, but they are not analysed
+\cite[Sec.~6]{turaev2022}; we have not checked how our orbit is related to that
+family.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{fig_circular_family.pdf}
+  \caption{One period of the circular orbit at several energies. The two
+  particles move on the same curve, half a period apart. (a) For
+  $2.0\le E\le4.0$ the loop grows towards the walls. (b) At $E\approx52$ and
+  $202$ it is a diamond touching all four walls. All orbits shown are linearly
+  stable.}
+  \label{fig:circular}
+\end{figure}
+
+% ---------------------------------------------------------------------------
+\section{Discussion}\label{sec:discussion}
+
+\paragraph{Summary.}
+The regular fraction $f(E)$ has three stages. Near the bottom of the wells all
+motion is regular, because the wells are nearly harmonic. As the energy
+approaches the saddle energy $E_s\approx1.9969$, trajectories can come close to
+the saddles and chaos appears, already slightly below $E_s$; above $E_s$, when
+particle~1 can move between the wells, chaos takes over almost the whole
+energy surface, with a minimum $f\approx0.04$ at $E\approx2.05$. At higher energy $f$ recovers slowly, to about
+one third at $E=200$; this regular motion lies on islands around stable
+periodic orbits. Of the two orbits we followed, the vertical one is stable for
+$E\gtrsim3.9$ and unstable below, and the circular one is stable at every
+energy we computed and becomes a billiard-like diamond at high energy.
+
+\paragraph{Relation to Rom-Kedar and Turaev.}
+Our results agree with their picture that stable periodic orbits keep the
+motion from being ergodic, and extend it in two directions: the vertical orbit
+is stable already at moderate energy and with $\beta=1$, outside the
+conditions of their theorem; and we measure how much of the energy surface is
+regular, which the theorem does not address. Within the energies we computed,
+the regular fraction stays well below one.
+
+\paragraph{Limitations.}
+All results are for centre-symmetric motions. These form a set of zero volume
+in the full phase space, so the regular fraction we measure is a fraction of
+the symmetric energy surface, not of the full one, and the islands we see are
+islands of the symmetric system. The Lyapunov exponents are computed over a
+finite time, so very weak chaos may be counted as regular, and the
+classification depends on a threshold; we checked this dependence but cannot
+remove it. The stability results for periodic orbits hold at the energies we
+computed and say nothing about short intervals in between. Linear stability
+also does not prove that an orbit is stable for larger perturbations.
+
+\paragraph{Open questions.}
+\begin{itemize}
+  \item Does $f(E)$ keep growing above $E=200$, and towards what value?
+  \item Are the chaotic trajectories below $E_s$ exactly those that come close
+        to the saddles, and how does the width of this chaotic layer depend on
+        $E_s-E$?
+  \item Which islands make up the regular fraction at high energy, and how
+        large is each? In particular, does the rise of $f$ between $E=3$ and
+        $4$ come from the island of the vertical orbit?
+  \item What happens to the vertical orbit between $E\approx3.9$ and $3.3$,
+        and where does the S-shaped orbit come from?
+  \item How do the results depend on the exponents $\alpha$, $\beta$, on the
+        shape of the box, and on non-symmetric motions?
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\appendix
+
+\section{Five example trajectories}\label{app:cases}
+Table~\ref{tab:cases} lists five initial conditions, and
+Figure~\ref{fig:cases} shows their trajectories and Poincar\'e sections.
+\begin{itemize}
+  \item Cases~1 and~2 start near the equilibrium and stay near it. Their
+        section points lie on smooth curves, so the motion is regular.
+  \item In Case~3 the particles go round the centre of the box, always
+        opposite each other. The section points form two tiny clusters, which
+        suggests a periodic orbit nearby (found in Section~\ref{sec:circular}).
+  \item In Case~4 each particle bounces between the top and bottom walls along
+        an almost vertical line. This is a periodic orbit: after one period
+        $T\approx1.0027$ the state returns to its starting value to within
+        $6\times10^{-7}$.
+  \item Case~5 starts like Case~4 but at a different $x$. Its section points
+        lie on a closed curve around the Case~4 point: the orbit oscillates
+        around the stable periodic orbit of Case~4.
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{Initial conditions. Particle~2 always starts at the point reflection
+of particle~1 through the centre, with the opposite momentum. $a\approx3.6645$
+is the equilibrium position.}
+\label{tab:cases}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Case & $\q_1(0)$ & $\p_1(0)$ & $E$ & Motion\\
+\midrule
+1 & $(a,a)+5\cdot10^{-4}(1,1)$ & $(10^{-3},0)$ & $1.9877$ & small regular oscillation\\
+2 & $(a,a)+0.25\,(1,1)$ & $(0,0.05)$ & $2.0073$ & regular\\
+3 & $(a,a)+5\cdot10^{-4}(1,1)$ & $(0.1,-0.1)$ & $2.0077$ & close to a periodic loop\\
+4 & $(3.8352,\,5)$ & $(0,20)$ & $402.08$ & periodic, vertical bouncing\\
+5 & $(3,\,5)$ & $(0,20)$ & $402.00$ & regular, around Case 4\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig_cases.pdf}
+  \caption{Top: trajectories of the five cases (particle~1 blue, particle~2
+  orange). Bottom: 200 returns to a Poincar\'e section, measured from the
+  starting point (red star). The section is taken through the starting point,
+  across the largest initial velocity component of particle~1: $x_1=x_1(0)$,
+  $p_{x_1}>0$ for Cases~1 and~3, so the axes are $(\Delta y_1,\Delta p_{y_1})$;
+  $y_1=y_1(0)$, $p_{y_1}>0$ for Cases~2, 4 and~5, so the axes are
+  $(\Delta x_1,\Delta p_{x_1})$. Note the scales: in Case~4 all returns lie
+  within $10^{-5}$ of the start.}
+  \label{fig:cases}
+\end{figure}
+
+\section{Following the circular orbit downwards}\label{app:downwards}
+Following the circular orbit to energies \emph{below} the Case~3 energy $E_0$
+did not work well. With steps of $0.1\%$ in energy, Newton still converged,
+but the period of the orbit it found jumped from $101.8$ to $109.2$, $135.4$
+and $140.6$, and at $0.998E_0$ it found an unstable, non-symmetric orbit. So
+Newton was jumping between different periodic orbits that lie close together,
+instead of following one orbit. At $0.996E_0$ Newton did not converge at all;
+with half the energy step it converged again. A continuation method that is
+designed to stay on one branch, such as pseudo-arclength continuation
+\cite{kuznetsov}, would be the natural next step.
+
+% ---------------------------------------------------------------------------
+\section*{Code and reproducibility}
+All code is available at
+\url{https://github.com/jiajunwu1729/2particle-numerics}. Table~\ref{tab:repro} lists the
+script that produces each figure.
+
+\begin{table}[H]
+\centering
+\caption{Figures and the code that produces them.}
+\label{tab:repro}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Figure & Source\\
+\midrule
+\ref{fig:potential} & \texttt{images/make\_potential\_figure.py}\\
+\ref{fig:energy-sections}, \ref{fig:cases} & \texttt{images/make\_section\_figures.py} (same computation as \texttt{report03.ipynb})\\
+\ref{fig:threshold}, \ref{fig:fraction} & \texttt{regular\_fraction\_scan.py}, then \texttt{images/make\_threshold\_figure.py}, \texttt{images/make\_fraction\_figure.py}\\
+\ref{fig:lyapunov} & \texttt{lyapunov\_poincare\_section.py}, then \texttt{images/compress\_figures.py}\\
+\ref{fig:islands} & \texttt{lyapunov\_section\_periodic\_orbits.py}, then \texttt{images/compress\_figures.py}\\
+\ref{fig:vertical}, \ref{fig:circular} & \texttt{images/make\_orbit\_figures.py} (periodic points from \texttt{report04.ipynb})\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section*{Acknowledgements}
+I thank Prof.\ Dmitry Turaev for suggesting this project and for his guidance.
+
+% ---------------------------------------------------------------------------
+\begin{thebibliography}{9}
+\bibitem{turaev2022}
+V.~Rom-Kedar and D.~Turaev,
+Stable motions of high energy particles interacting via a repelling potential,
+\emph{Comm.\ Math.\ Phys.}\ \textbf{405} (2024), no.~6, 150;
+arXiv:2208.14993.
+% Verified via Crossref, DOI 10.1007/s00220-024-04946-3 (2026-11-08).
+
+\bibitem{hairer2006}
+E.~Hairer, C.~Lubich and G.~Wanner,
+\emph{Geometric Numerical Integration}, 2nd ed., Springer, 2006.
+
+\bibitem{lichtenberg1992}
+A.~J.~Lichtenberg and M.~A.~Lieberman,
+\emph{Regular and Chaotic Dynamics}, 2nd ed., Springer, 1992.
+
+\bibitem{kuznetsov}
+Yu.~A.~Kuznetsov, \emph{Elements of Applied Bifurcation Theory}, 3rd ed.,
+Springer, 2004.
+\end{thebibliography}
+
+\end{document}

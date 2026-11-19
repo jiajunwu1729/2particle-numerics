@@ -27,6 +27,8 @@ Results are cached per energy in tmp/regular_fraction_cache/.
 
 Usage:  python regular_fraction_scan.py            (run / load all energies)
         python regular_fraction_scan.py 52.23 200  (only these energies)
+        python regular_fraction_scan.py --t-mult=2 3 52.23   (T doubled;
+            cached separately, figures not redrawn)
 """
 
 from __future__ import annotations
@@ -54,8 +56,9 @@ E_EQ = 1.9877  # equilibrium energy (report, Section 2)
 E_REF = 52.23  # energy of the section picture in the report
 
 ENERGIES = [
-    1.990, 1.995, 2.000, 2.005, 2.010, 2.020, 2.050, 2.10, 2.20, 2.40,
-    2.70, 3.00, 4.00, 6.00, 10.0, 20.0, 52.23, 100.0, 200.0,
+    1.990, 1.995, 1.996, 1.997, 1.998, 1.999, 2.000, 2.005, 2.010, 2.020,
+    2.050, 2.10, 2.20, 2.40, 2.70, 3.00, 4.00, 6.00, 10.0, 20.0, 52.23,
+    100.0, 200.0,
 ]
 
 N_SAMPLES = 60 * 60  # trajectories per energy
@@ -68,8 +71,13 @@ WALL_MARGIN = 1e-3   # sampling box (WALL_MARGIN, L - WALL_MARGIN)^2
 # E = 52 run (T = 500); near the equilibrium the oscillation period is O(1),
 # so T is capped there.  h ~ 1/E keeps the relative energy error <~2e-4
 # (h = 1e-3 * 52.23/E gave 7e-4 at E = 10 in a first test).
+# Near the saddle energy the chaos is very weak and T = 2500 misses most of it
+# (E = 1.996: f = 0.996 with T = 2500, 0.667 with 10000, 0.630 with 20000), so
+# for E <= E_LOW_MAX the standard time is T_LOW instead.
 T_REF = 500.0
 T_MAX = 2500.0
+E_LOW_MAX = 2.05
+T_LOW = 10000.0
 H_MAX = 5e-3
 RENORM_EVERY = 40
 
@@ -88,8 +96,15 @@ FIG_HISTS = PROJECT_DIR / "images" / "regular_fraction_histograms.png"
 
 
 # -----------------------------------------------------------------------------
+T_MULT = 1.0  # set from the command line (--t-mult=K) for convergence checks
+
+
 def integration_settings(energy: float) -> tuple[float, float]:
-    t_final = min(T_MAX, T_REF * np.sqrt(E_REF / energy))
+    if energy <= E_LOW_MAX + 1e-12:
+        t_std = T_LOW
+    else:
+        t_std = min(T_MAX, T_REF * np.sqrt(E_REF / energy))
+    t_final = T_MULT * t_std
     h = min(H_MAX, 5e-4 * E_REF / energy)
     return float(t_final), float(h)
 
@@ -308,9 +323,15 @@ def plot_histograms(results: dict, path: Path):
 
 
 if __name__ == "__main__":
-    energies = [float(a) for a in sys.argv[1:]] or ENERGIES
+    args = sys.argv[1:]
+    for a in [a for a in args if a.startswith("--t-mult=")]:
+        T_MULT = float(a.split("=", 1)[1])
+        args.remove(a)
+    energies = [float(a) for a in args] or ENERGIES
     results = run_all(energies)
     summarise(results)
-    if len(results) > 1:
+    # Figures only for the standard run, so a convergence check (other T)
+    # does not overwrite them.
+    if len(results) > 1 and T_MULT == 1.0:
         plot_fraction(results, FIG_FRACTION)
         plot_histograms(results, FIG_HISTS)

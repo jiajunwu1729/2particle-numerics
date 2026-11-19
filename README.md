@@ -1,188 +1,142 @@
 # Two-Particle Hamiltonian Numerics
 
-This project studies the motion of two interacting classical particles confined
-to a two-dimensional rectangular box. The main aim is to explore, numerically,
-when the system exhibits bounded, regular, or long-lived stable trajectories.
-
-The model is intended as a flexible numerical toy model. Its parameters are
-dimensionless and freely adjustable: we are not trying to reproduce a specific
-physical system. Instead, we want to identify parameter choices for which the
-equations can be integrated reliably and interesting trajectories can be
-observed.
+Numerical study of two repelling particles in a square box, restricted to
+motions that are symmetric about the centre of the box. The main result is the
+fraction `f(E)` of the energy surface filled by regular motion, from the
+equilibrium up to `E = 200`. The write-up is in
+[`report/report.pdf`](report/report.pdf) (source:
+[`report/report.tex`](report/report.tex)).
 
 ## Model
 
-Let particle `i` have position
+Particle `i` has position `q_i = (x_i, y_i)` and momentum `p_i`. In a box of
+width `Lx` and height `Ly` the Hamiltonian is
 
 ```text
-r_i = (x_i, y_i)
+H = sum_i |p_i|^2 / (2 m_i) + V(|q_1 - q_2|) + U(q_1) + U(q_2),
+
+V(r)    = k r^(-alpha),
+U(x, y) = C [x^(-beta) + (Lx - x)^(-beta) + y^(-beta) + (Ly - y)^(-beta)].
 ```
 
-and momentum
+Both potentials are singular (at collision and at the walls), so the particles
+never collide or leave the box. All results use
 
 ```text
-p_i = (p_xi, p_yi).
+k = C = alpha = beta = 1,   m_1 = m_2 = 1,   Lx = Ly = 10.
 ```
 
-For a box of width `Lx` and height `Ly`, the Hamiltonian is
+**Centre-symmetric motions.** If `q_2 = (10, 10) - q_1` and `p_2 = -p_1` at
+`t = 0`, this stays true for all time, and it is enough to follow particle 1:
+a Hamiltonian system with two degrees of freedom. Its total energy is
+`H_sym = |p_1|^2 + V_sym(q_1)` with `V_sym(q_1) = V(|2 q_1 - (10, 10)|) + 2 U(q_1)`.
+`V_sym` has four wells at energy `E_eq ~ 1.98765`, separated by four saddles at
+`E_s ~ 1.99689`.
 
-```text
-H = sum_i |p_i|^2 / (2 m_i)
-    + V(|r_1 - r_2|)
-    + U(r_1) + U(r_2).
-```
+## Methods in brief
 
-### Particle-particle interaction
+- **Integration:** leapfrog (velocity Verlet), time step
+  `h = min(5e-3, 0.026 / E)` in the `f(E)` scan.
+- **Regular or chaotic:** finite-time Lyapunov exponent `lambda_T` from the
+  linearised leapfrog map; a trajectory is regular if
+  `lambda_T < 3.2 ln(T) / T`.
+- **Sampling:** initial conditions drawn from the Liouville (microcanonical)
+  measure of the symmetric system, 3600 per energy.
+- **Periodic orbits:** Newton's method on a Poincaré map, Floquet multipliers
+  for linear stability, and continuation in energy.
 
-The particles interact through an inverse-power potential,
+See Section 3 and Appendix C of the report for details.
 
-```text
-V(r) = k r^(-alpha),
+## Repository layout
 
-r = |r_1 - r_2|.
-```
-
-For `k > 0` and `alpha > 0`, this interaction is repulsive and becomes
-singular as the particles approach one another.
-
-### Box potential
-
-The particles are confined by a smooth repulsive potential near the four walls,
-
-```text
-U(x, y) = C [x^(-beta) + (Lx - x)^(-beta)
-             + y^(-beta) + (Ly - y)^(-beta)],
-```
-
-with
-
-```text
-0 < x < Lx,    0 < y < Ly.
-```
-
-For `C > 0` and `beta > 0`, the potential grows without bound near each wall,
-keeping the particles inside the box.
-
-## Adjustable parameters
-
-All model and integration parameters may be varied, including:
-
-| Parameter | Meaning |
+| File | Purpose |
 | --- | --- |
-| `m1`, `m2` | particle masses |
-| `k` | particle-particle interaction strength |
-| `alpha` | particle-particle inverse-power exponent |
-| `C` | wall-potential strength |
-| `beta` | wall inverse-power exponent |
-| `Lx`, `Ly` | box dimensions |
-| `r1(0)`, `r2(0)` | initial particle positions |
-| `p1(0)`, `p2(0)` | initial particle momenta |
-| `dt` | numerical time step, when applicable |
-| `T` | total integration time |
+| `system.py` | Hamiltonian, potentials and the general `System` integrator |
+| `initial_conditions.py` | The five example initial conditions (report, Appendix D) |
+| `energy_continuation.py` | Poincaré-map Newton solver and continuation of periodic orbits in energy |
+| `lyapunov_poincare_section.py` | Poincaré section `y1 = 5` at `E ~ 52.23`, coloured by Lyapunov exponent; also provides the vectorised symmetric-motion integrator used by the scans |
+| `lyapunov_section_periodic_orbits.py` | Finds the stable periodic orbits at the centres of the islands of that section |
+| `island_fraction_section.py` | Fraction of that section covered by islands (area and return-time weighted) |
+| `regular_fraction_scan.py` | The main computation: `f(E)` at 23 energies |
+| `inspect_trajectories.py` | Plots a few random trajectories at one energy, to judge the integration time |
+| `plot_selected_orbits.py` | Plots selected island-centre orbits, in the square or a rectangular box |
+| `images/make_*.py`, `images/compress_figures.py` | Produce the figures of the report (see below) |
+| `report01.ipynb` ... `report04.ipynb` | Earlier exploratory notebooks; `report03` and `report04` hold computations reused by the figure scripts |
+| `case3_newton_failure_diagnosis.ipynb` | Why continuation of the circular orbit below Case 3 fails |
+| `animation.py`, `animation2.py` | Manim animations of trajectories (not used in the report) |
 
-The useful parameter range is part of the investigation. A convenient starting
-point is to choose quantities of order one, place both particles well away from
-the walls and from each other, and use moderate initial momenta. The time step
-should then be reduced until the trajectory and energy error no longer change
-significantly.
+Long computations are cached in `tmp/` (not in the repository) and reused on
+the next run. Run all scripts from the repository root.
 
-## Numerical considerations
+## Reproducing the report
 
-Both potentials are singular: the interaction diverges at `r = 0`, and the box
-potential diverges at the walls. Consequently, some initial conditions or large
-time steps may produce extremely large forces and numerical failure. Simulations
-should therefore monitor at least:
+### Figures
 
-- total energy and its relative drift;
-- the minimum particle-particle separation;
-- the minimum distance from either particle to a wall;
-- convergence of the result as the time step or solver tolerance is reduced.
+| Figure in report | Produced by |
+| --- | --- |
+| 1 (potential, wells and saddles) | `images/make_potential_figure.py` |
+| 2 (threshold histograms), 4 (`f(E)`) | `regular_fraction_scan.py`, then `images/make_threshold_figure.py` and `images/make_fraction_figure.py` |
+| 3 (sections at four energies), 10 (five example cases) | `images/make_section_figures.py` (same computation as `report03.ipynb`) |
+| 5 (nine trajectories at `E = 1.996`) | `images/make_saddle_sample_figure.py` (same computation as `inspect_trajectories.py 1.996 --T 10000 --seed 1`) |
+| 6 (Lyapunov-coloured section at `E ~ 52`) | `lyapunov_poincare_section.py`, then `images/compress_figures.py` |
+| 7 (island-centre periodic orbits) | `lyapunov_section_periodic_orbits.py`, then `images/compress_figures.py` |
+| 8 (vertical orbit), 9 (circular orbit) | `images/make_orbit_figures.py` (periodic points from `report04.ipynb`) |
 
-For long integrations, a symplectic method is desirable because the system is
-Hamiltonian. An adaptive solver can also be useful during early experiments,
-especially near close encounters, but solver success alone should not be taken
-as evidence that an orbit is stable.
+Figure numbers refer to the current `report/report.pdf`.
 
-In this project, a candidate stable trajectory may be defined operationally as
-one that remains inside a safe region of phase space for a chosen observation
-time, avoids singular encounters, and shows bounded numerical energy error.
-Additional diagnostics, such as Poincare sections or Lyapunov exponents, may be
-introduced later to distinguish regular motion from chaotic but bounded motion.
+### Numbers quoted in the text
 
-## Manim animation
+| Number | Produced by |
+| --- | --- |
+| Wells, saddles, `E_eq`, `E_s` | `images/make_potential_figure.py` (printed) |
+| Fraction of trajectories in the threshold gap | `images/make_threshold_figure.py` (printed) |
+| `f(E)`, fraction crossing `y1 = 5`, energy error | `regular_fraction_scan.py` (printed) |
+| Convergence table (`T` vs `2T`, Appendix A) | `regular_fraction_scan.py --t-mult=2`, then `images/make_fraction_figure.py` (printed) |
+| Island fractions 33% and 31% at `E ~ 52` | `island_fraction_section.py` |
 
-The numerical trajectory can be rendered as a video with the
-[`ParticleSystem`](animation.py) scene in `animation.py`.
+### Typical order
 
-### Installation
+```bash
+python regular_fraction_scan.py            # long; cached in tmp/
+python regular_fraction_scan.py --t-mult=2 # convergence check
+python images/make_threshold_figure.py
+python images/make_fraction_figure.py
+python images/make_potential_figure.py
+python images/make_section_figures.py
+python images/make_saddle_sample_figure.py
+python lyapunov_poincare_section.py
+python lyapunov_section_periodic_orbits.py
+python island_fraction_section.py
+python images/make_orbit_figures.py
+python images/compress_figures.py
+```
 
-Create and activate a virtual environment from the repository root:
+`regular_fraction_scan.py` also accepts a list of energies, e.g.
+`python regular_fraction_scan.py 1.995 1.996`. The report is built with
+`pdflatex report.tex` (twice) in `report/`.
+
+## Installation
 
 ```powershell
 # Windows PowerShell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
 ```bash
 # macOS or Linux
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-Then install the numerical dependencies and Manim Community:
-
-```bash
-python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python -m pip install manim
 ```
 
-Verify that Manim is available:
+The animations additionally need [Manim Community](https://www.manim.community/):
+`python -m pip install manim`, then for example
 
 ```bash
-python -m manim --version
+python -m manim -pql animation.py ParticleSystem   # quick preview
+python -m manim -pqh animation.py ParticleSystem   # 1080p60
 ```
 
-### Rendering the video
-
-For a quick, low-quality preview render, run:
-
-```bash
-python -m manim -pql animation.py ParticleSystem
-```
-
-For the final 1080p60 render, run:
-
-```bash
-python -m manim -pqh animation.py ParticleSystem
-```
-
-Here, `-p` opens the video after rendering, while `-ql` and `-qh` select low
-and high quality, respectively. If automatic preview is not desired or is not
-available in the current environment, omit `-p`.
-
-Manim writes the rendered MP4 below `media/videos/animation/`. For example, the
-high-quality command produces:
-
-```text
-media/videos/animation/1080p60/ParticleSystem.mp4
-```
-
-The simulation is computed when `animation.py` is loaded, so rendering can take
-some time before the animation frames begin to appear.
-
-## Project status
-
-The repository is currently being set up. At present it contains the Python
-environment configuration and a minimal import check; the Hamiltonian,
-integrators, trajectory analysis, and automated tests are still to be added.
-
-## Planned work
-
-- implement the potentials and their gradients;
-- implement Hamilton's equations of motion;
-- compare suitable numerical integrators;
-- test energy conservation and time-step convergence;
-- scan parameters and initial conditions for candidate stable trajectories;
-- visualise trajectories, phase-space sections, and stability diagnostics.
+Manim writes the video below `media/videos/`.
