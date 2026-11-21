@@ -7,9 +7,10 @@ media/
 # Caches of long computations (e.g. the Lyapunov scan); kept locally only
 tmp/
 
-# Intermediate full-size PNGs written by lyapunov_*.py and plot_selected_orbits.py;
-# the report uses the PDFs and *_report.jpg files in images/
-#images/*.png
+# Diagnostic PNGs written by the scan / inspection scripts; the report uses
+# only the fig_*.pdf files in images/
+images/*.png
+images/*.jpg
 
 # LaTeX build files
 *.aux

@@ -61,6 +61,7 @@ See Section 3 and Appendix B of the report for details.
 | `inspect_trajectories.py` | Plots a few random trajectories at one energy, to judge the integration time |
 | `plot_selected_orbits.py` | Plots selected island-centre orbits, in the square or a rectangular box |
 | `images/make_*.py` | Produce the figures of the report (see below) |
+| `report05.ipynb` | The main line of the paper: draws every report figure in paper order by calling the `images/make_*.py` scripts, and prints the numbers quoted in the text |
 | `report01.ipynb` ... `report04.ipynb` | Earlier exploratory notebooks; `report03` and `report04` hold computations reused by the figure scripts |
 | `case3_newton_failure_diagnosis.ipynb` | Why continuation of the circular orbit below Case 3 fails |
 | `animation.py`, `animation2.py` | Manim animations of trajectories (not used in the report) |
@@ -70,6 +71,8 @@ the next run. Run all scripts from the repository root.
 
 ## Reproducing the report
 
+- The quickest route is `report05.ipynb`, which runs all figure scripts
+  below in the order of the paper (it reads the caches in `tmp/`).
 - All figures used in the report are the `fig_*.pdf` files in `images/`, made
   by the `images/make_*.py` scripts.
 - The two figures of the section at `E ~ 52` (`make_lyapunov_section_figures.py`)
