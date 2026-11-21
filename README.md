@@ -45,14 +45,14 @@ a Hamiltonian system with two degrees of freedom. Its total energy is
 - **Periodic orbits:** Newton's method on a Poincaré map, Floquet multipliers
   for linear stability, and continuation in energy.
 
-See Section 3 and Appendix C of the report for details.
+See Section 3 and Appendix B of the report for details.
 
 ## Repository layout
 
 | File | Purpose |
 | --- | --- |
 | `system.py` | Hamiltonian, potentials and the general `System` integrator |
-| `initial_conditions.py` | The five example initial conditions (report, Appendix D) |
+| `initial_conditions.py` | The five example initial conditions (report, Appendix C) |
 | `energy_continuation.py` | Poincaré-map Newton solver and continuation of periodic orbits in energy |
 | `lyapunov_poincare_section.py` | Poincaré section `y1 = 5` at `E ~ 52.23`, coloured by Lyapunov exponent; also provides the vectorised symmetric-motion integrator used by the scans |
 | `lyapunov_section_periodic_orbits.py` | Finds the stable periodic orbits at the centres of the islands of that section |
@@ -60,7 +60,7 @@ See Section 3 and Appendix C of the report for details.
 | `regular_fraction_scan.py` | The main computation: `f(E)` at 23 energies |
 | `inspect_trajectories.py` | Plots a few random trajectories at one energy, to judge the integration time |
 | `plot_selected_orbits.py` | Plots selected island-centre orbits, in the square or a rectangular box |
-| `images/make_*.py`, `images/compress_figures.py` | Produce the figures of the report (see below) |
+| `images/make_*.py` | Produce the figures of the report (see below) |
 | `report01.ipynb` ... `report04.ipynb` | Earlier exploratory notebooks; `report03` and `report04` hold computations reused by the figure scripts |
 | `case3_newton_failure_diagnosis.ipynb` | Why continuation of the circular orbit below Case 3 fails |
 | `animation.py`, `animation2.py` | Manim animations of trajectories (not used in the report) |
@@ -70,50 +70,16 @@ the next run. Run all scripts from the repository root.
 
 ## Reproducing the report
 
-### Figures
-
-| Figure in report | Produced by |
-| --- | --- |
-| 1 (potential, wells and saddles) | `images/make_potential_figure.py` |
-| 2 (threshold histograms), 4 (`f(E)`) | `regular_fraction_scan.py`, then `images/make_threshold_figure.py` and `images/make_fraction_figure.py` |
-| 3 (sections at four energies), 10 (five example cases) | `images/make_section_figures.py` (same computation as `report03.ipynb`) |
-| 5 (nine trajectories at `E = 1.996`) | `images/make_saddle_sample_figure.py` (same computation as `inspect_trajectories.py 1.996 --T 10000 --seed 1`) |
-| 6 (Lyapunov-coloured section at `E ~ 52`) | `lyapunov_poincare_section.py`, then `images/compress_figures.py` |
-| 7 (island-centre periodic orbits) | `lyapunov_section_periodic_orbits.py`, then `images/compress_figures.py` |
-| 8 (vertical orbit), 9 (circular orbit) | `images/make_orbit_figures.py` (periodic points from `report04.ipynb`) |
-
-Figure numbers refer to the current `report/report.pdf`.
-
-### Numbers quoted in the text
-
-| Number | Produced by |
-| --- | --- |
-| Wells, saddles, `E_eq`, `E_s` | `images/make_potential_figure.py` (printed) |
-| Fraction of trajectories in the threshold gap | `images/make_threshold_figure.py` (printed) |
-| `f(E)`, fraction crossing `y1 = 5`, energy error | `regular_fraction_scan.py` (printed) |
-| Convergence table (`T` vs `2T`, Appendix A) | `regular_fraction_scan.py --t-mult=2`, then `images/make_fraction_figure.py` (printed) |
-| Island fractions 33% and 31% at `E ~ 52` | `island_fraction_section.py` |
-
-### Typical order
-
-```bash
-python regular_fraction_scan.py            # long; cached in tmp/
-python regular_fraction_scan.py --t-mult=2 # convergence check
-python images/make_threshold_figure.py
-python images/make_fraction_figure.py
-python images/make_potential_figure.py
-python images/make_section_figures.py
-python images/make_saddle_sample_figure.py
-python lyapunov_poincare_section.py
-python lyapunov_section_periodic_orbits.py
-python island_fraction_section.py
-python images/make_orbit_figures.py
-python images/compress_figures.py
-```
-
-`regular_fraction_scan.py` also accepts a list of energies, e.g.
-`python regular_fraction_scan.py 1.995 1.996`. The report is built with
-`pdflatex report.tex` (twice) in `report/`.
+- All figures used in the report are the `fig_*.pdf` files in `images/`, made
+  by the `images/make_*.py` scripts.
+- The two figures of the section at `E ~ 52` (`make_lyapunov_section_figures.py`)
+  read the cached results of `lyapunov_poincare_section.py` and
+  `lyapunov_section_periodic_orbits.py`, so run those two first.
+- The `f(E)` data come from `regular_fraction_scan.py` (long, cached in
+  `tmp/`; `--t-mult=2` gives the convergence check). Run it before the
+  threshold and fraction figures. The numbers quoted in the text are printed
+  by these same scripts.
+- The report is built with `pdflatex report.tex` (twice) in `report/`.
 
 ## Installation
 

@@ -124,8 +124,8 @@ def main() -> None:
         col = RED if u[j] >= C_THRESHOLD else BLUE
         ax.loglog(t, np.clip(d["lyap"][:, j], 1e-6, None), color=col, lw=0.6)
     ax.set_ylim(1e-4, 1)
-    ax.set_xlabel("$t$")
-    ax.set_ylabel(r"$\lambda(t)$")
+    ax.set_xlabel("$T$")
+    ax.set_ylabel(r"$\lambda_T$")
     ax.yaxis.set_label_position("right")
     ax.yaxis.tick_right()
     save(fig, "fig_saddle_sample")
